@@ -24,10 +24,15 @@
 }
 
 /* ---- Header ---- */
+/* Declared on <body>, not .reader-shell: the guest banner is a sibling of the
+   shell, and custom properties inherit down the tree rather than across it. */
+.reader-page { --reader-header-height: 63px; --reader-footer-height: 56px; }
+
 .reader-header {
     display: flex;
     align-items: center;
     gap: var(--space-3);
+    min-height: var(--reader-header-height);
     padding: var(--space-3) var(--space-5);
     border-bottom: 1px solid var(--border-default);
     background: var(--bg-elevated);
@@ -122,9 +127,12 @@
     font-size: var(--text-xs); color: var(--text-tertiary);
 }
 
-/* ---- Side panels ---- */
+/* ---- Side panels ----
+   The drawer starts *below* the header. At full height it sat on top of the
+   toolbar, so the very button that opened a panel became unclickable and the
+   only way out was Escape or a click on the page behind it. */
 .reader-panel {
-    position: fixed; top: 0; bottom: 0; right: 0;
+    position: fixed; top: var(--reader-header-height, 63px); bottom: 0; right: 0;
     width: min(380px, 90vw);
     background: var(--bg-elevated);
     border-left: 1px solid var(--border-default);
@@ -135,7 +143,12 @@
     transition: transform var(--duration) var(--ease);
 }
 .reader-panel:not([hidden]) { transform: translateX(0); }
+/* Kept in flow (rather than display:none) so the slide-out transition runs;
+   pointer-events off means the off-screen panel cannot swallow clicks. */
 .reader-panel[hidden] { display: flex; pointer-events: none; }
+/* Immersive mode slides the header away, so the drawer reclaims the space. */
+.reader-shell.is-immersive .reader-panel { top: 0; }
+.reader-shell.is-immersive ~ .reader-guest-banner { bottom: var(--space-4); }
 
 .reader-panel-header {
     display: flex; align-items: center; justify-content: space-between;
@@ -230,9 +243,14 @@
 .reader-toast[hidden] { display: none; }
 
 /* ---- Guest banner ---- */
+/* Sits clear of the progress bar at the foot of the reader — anchored at
+   the bar's height plus a gap, rather than at the viewport edge where it
+   covered the page percentage. */
 .reader-guest-banner {
-    position: fixed; bottom: var(--space-4); right: var(--space-4);
-    max-width: 320px;
+    position: fixed;
+    bottom: calc(var(--reader-footer-height, 56px) + var(--space-3));
+    right: var(--space-4);
+    max-width: min(320px, calc(100vw - var(--space-8)));
     padding: var(--space-3) var(--space-4);
     background: var(--secondary-50);
     border: 1px solid color-mix(in srgb, var(--secondary-500) 25%, transparent);
@@ -621,4 +639,164 @@
     background: var(--accent-100);
     color: var(--accent-700);
     border-color: var(--accent-500);
+}
+
+/* ============================================================================
+   Page readers (PDF + comic)
+   Shared chrome with the EPUB reader; the viewport is a scroll container that
+   holds one or two rendered pages instead of an epub.js iframe.
+   ============================================================================ */
+
+.page-reader .page-viewport {
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-tertiary);
+}
+.page-reader[data-theme="dark"] .page-viewport { background: #000; }
+.page-reader[data-theme="sepia"] .page-viewport { background: #e6dcbd; }
+
+.page-scroll {
+    position: absolute;
+    inset: 0;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    /* Leave room for the edge hotspots so a drag-scroll still works. */
+    padding: var(--space-4) clamp(var(--space-4), 8vw, 96px);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+}
+.page-scroll:focus-visible { outline: 2px solid var(--accent-500); outline-offset: -4px; }
+
+/* The stage must span the scroll container, not shrink to its contents:
+   `width: 100%` on a page image resolves against this box, so a shrink-to-fit
+   stage made "fit width" a no-op and pages rendered at intrinsic size. */
+.page-stage {
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-start;
+    justify-content: center;
+    margin: auto;
+    width: 100%;
+    max-width: 100%;
+}
+.page-stage[data-spread="1"] { gap: 2px; }
+
+.page-stage img.comic-page,
+.page-stage canvas.pdf-page {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    background: #fff;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-large);
+}
+
+/* Fit modes. `width` is the default and simply fills the stage; the others
+   constrain against the viewport height instead. Comic pages are <img> and
+   are sized here; PDF canvases are already rasterised at the right size, so
+   only max-height applies to them. */
+.page-stage[data-fit="width"]  img.comic-page { width: 100%; flex: 1 1 0; }
+.page-stage[data-fit="height"] img.comic-page,
+.page-stage[data-fit="page"]   img.comic-page { max-height: calc(100dvh - 190px); width: auto; }
+.page-stage[data-fit="custom"] img.comic-page {
+    width: calc(100% * var(--page-zoom, 1));
+    max-width: none;
+}
+.page-stage[data-fit="height"] canvas.pdf-page,
+.page-stage[data-fit="page"]   canvas.pdf-page { max-height: calc(100dvh - 190px); }
+
+/* Loading + error overlays */
+.page-loading {
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: var(--space-3);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    pointer-events: none;
+}
+.page-spinner {
+    width: 28px; height: 28px;
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--accent-500);
+    border-radius: var(--radius-full);
+    animation: page-spin 700ms linear infinite;
+}
+@keyframes page-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .page-spinner { animation: none; border-top-color: var(--accent-500); }
+}
+
+.page-error {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: min(440px, 88vw);
+    text-align: center;
+    padding: var(--space-5) var(--space-6);
+    background: var(--bg-elevated);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius-lg);
+    color: var(--color-danger);
+    box-shadow: var(--shadow-large);
+}
+
+/* Progress bar: a real range input rather than a fake track, so it is
+   keyboard- and screen-reader-operable for free. */
+.page-progress {
+    display: grid;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-5) var(--space-3);
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--border-default);
+}
+.page-slider {
+    width: 100%;
+    accent-color: var(--accent-500);
+    cursor: pointer;
+}
+.page-progress .reader-progress-info {
+    display: flex; justify-content: space-between;
+    font-size: var(--text-xs); color: var(--text-tertiary);
+}
+
+/* Go-to-page form inside the Pages panel */
+.page-jump {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-2);
+    align-items: end;
+}
+.page-jump label { grid-column: 1 / -1; font-size: var(--text-sm); color: var(--text-secondary); }
+.page-jump input {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    width: 100%;
+}
+.page-thumb-list { max-height: 50vh; overflow-y: auto; }
+.page-thumb-list li.is-current .toc-item {
+    background: var(--accent-50);
+    color: var(--accent-700);
+    font-weight: 600;
+}
+
+/* Immersive mode hides the chrome; the shared rules in the EPUB section
+   already cover the header, so only the page-specific bars need adding. */
+.reader-shell.is-immersive .page-progress {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--duration) var(--ease);
+}
+.reader-shell.is-immersive .page-scroll { padding-block: var(--space-2); }
+
+@media (max-width: 768px) {
+    .page-scroll { padding-inline: var(--space-2); }
+    .page-stage[data-spread="1"] { gap: 0; }
+    .page-progress { padding: var(--space-2) var(--space-3); }
 }

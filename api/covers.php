@@ -13,9 +13,19 @@ define('APP_BOOTED', true);
 require __DIR__ . '/../includes/bootstrap.php';
 
 require_role('admin');
+
+// Without this the endpoint answers GET too, and GET skips CSRF by design —
+// so the only thing standing between a cross-site request and a cover
+// overwrite would be the admin session cookie.
+if (request_method() !== 'POST') {
+    json_error('Method not allowed', 405);
+}
 csrf_verify_or_abort();
 
 $payload = json_decode(file_get_contents('php://input') ?: '[]', true);
+if (!is_array($payload)) {
+    json_error('Invalid JSON body', 400);
+}
 $uuid    = (string) ($payload['uuid'] ?? '');
 $dataUrl = (string) ($payload['data_url'] ?? '');
 

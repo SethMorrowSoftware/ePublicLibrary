@@ -1,110 +1,154 @@
 <?php
 /**
- * One-shot importer for the legacy books/ directory.
+ * Bulk importer for a folder of book files on disk.
  *
- * Walks the old books/ tree, parses each EPUB, inserts into the DB, moves
- * the file to storage/books/{shard}/{uuid}.epub, and migrates covers.
+ * Walks a directory tree, imports every EPUB / PDF / CBZ / CBR it finds, and
+ * leaves the originals untouched (files are copied into storage, not moved),
+ * so an admin can verify the results before deleting anything.
  *
- * Idempotent — re-running is safe; existing books (by file_hash) are skipped.
+ * Idempotent — files already in the library (matched by checksum) are skipped,
+ * so re-running after adding more files is safe.
+ *
+ * The default source is the legacy `books/` directory from the v7.x
+ * proof-of-concept; an admin can point it at any directory inside the install.
  */
 define('APP_BOOTED', true);
 require __DIR__ . '/../includes/bootstrap.php';
 
 require_role('admin');
 
-$legacyDir = project_path('books');
+$defaultDir = project_path('books');
+$requested  = trim((string) ($_POST['dir'] ?? $_GET['dir'] ?? ''));
+$scanDir    = $requested !== '' ? resolve_import_dir($requested) : $defaultDir;
+
 $results = [];
+$summary = ['imported' => 0, 'skipped' => 0, 'failed' => 0];
 
 if (is_post()) {
     csrf_verify_or_abort();
-    if (!is_dir($legacyDir)) {
-        flash('error', 'No legacy books/ directory found at ' . $legacyDir);
+
+    if ($scanDir === null) {
+        flash('error', 'That folder is outside the installation directory.');
+        redirect('admin/scan-books.php');
+    }
+    if (!is_dir($scanDir)) {
+        flash('error', 'No such folder: ' . $scanDir);
         redirect('admin/scan-books.php');
     }
 
     @set_time_limit(0);
     @ignore_user_abort(true);
 
-    $iter = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($legacyDir, RecursiveDirectoryIterator::SKIP_DOTS)
-    );
-    foreach ($iter as $file) {
-        if (!$file->isFile()) { continue; }
-        if (strtolower($file->getExtension()) !== 'epub') { continue; }
-
-        $path = $file->getPathname();
-        $hash = hash_file('sha256', $path);
-        if ($hash === false) {
-            $results[] = ['path' => $path, 'ok' => false, 'reason' => 'hash failed'];
-            continue;
-        }
-        $existing = BookRepository::findByHash($hash);
-        if ($existing) {
-            $results[] = ['path' => $path, 'ok' => true, 'reason' => "already imported as “{$existing['title']}”"];
-            continue;
-        }
-
-        $validation = EpubValidator::validate($path, $file->getFilename());
-        if (!$validation['ok']) {
-            $results[] = ['path' => $path, 'ok' => false, 'reason' => $validation['error']];
-            continue;
-        }
-        try {
-            $meta = EpubParser::parse($path);
-        } catch (Throwable $e) {
-            $results[] = ['path' => $path, 'ok' => false, 'reason' => $e->getMessage()];
-            continue;
-        }
-
-        $uuid = uuid_v4();
-        // Copy (don't move) so legacy dir stays intact until admin deletes it
-        $dest = BookFileStorage::pathForUuid($uuid);
-        if (!@copy($path, $dest)) {
-            $results[] = ['path' => $path, 'ok' => false, 'reason' => 'copy failed'];
-            continue;
-        }
-        @chmod($dest, 0640);
-
-        $coverRel = !empty($meta['cover_data'])
-            ? ThumbnailService::saveFromBytes($meta['cover_data'], $uuid)
-            : null;
-
-        $title  = $meta['title']  ?: pathinfo($file->getFilename(), PATHINFO_FILENAME);
-        $author = $meta['author'] ?: 'Unknown';
-
-        $bookId = BookRepository::create([
-            'uuid'             => $uuid,
-            'slug'             => BookRepository::makeSlug($title),
-            'title'            => mb_substr($title, 0, 500),
-            'author'           => mb_substr($author, 0, 500),
-            'language'         => $meta['language']  ?? null,
-            'publisher'        => $meta['publisher'] ?? null,
-            'published_date'   => $meta['published'] ?? null,
-            'isbn'             => $meta['isbn']      ?? null,
-            'description'      => $meta['description'] ?? null,
-            'description_html' => $meta['description'] ? nl2br(e($meta['description'])) : null,
-            'storage_path'     => shard_for($uuid) . '/' . $uuid . '.epub',
-            'cover_path'       => $coverRel,
-            'file_size'        => $validation['size'],
-            'file_hash'        => $hash,
-            'mime_type'        => 'application/epub+zip',
-            'status'           => 'published',
-            'uploaded_by'      => current_user()['id'],
-        ]);
-
-        if (!empty($meta['subjects'])) {
-            TagRepository::attachToBook($bookId, $meta['subjects'], 'genre');
-        }
-
-        AuditLogger::log('book.imported_legacy', 'book', $bookId, ['source' => $path]);
-        $results[] = ['path' => $path, 'ok' => true, 'reason' => "imported as “{$title}”"];
+    foreach (import_candidates($scanDir) as $file) {
+        $result = import_one($file);
+        $results[] = $result;
+        $summary[$result['status']]++;
     }
+
+    AuditLogger::log('books.folder_import', null, null, $summary + ['dir' => $scanDir]);
 }
 
 render('admin/scan-books', [
-    'pageTitle'  => 'Import legacy books',
-    'activeNav'  => 'books',
-    'legacyDir'  => $legacyDir,
-    'legacyHas'  => is_dir($legacyDir),
+    'pageTitle'  => 'Import folder',
+    'activeNav'  => 'import',
+    'scanDir'    => $scanDir ?? $defaultDir,
+    'defaultDir' => $defaultDir,
+    'dirExists'  => $scanDir !== null && is_dir($scanDir),
+    'extensions' => BookFormat::UPLOAD_EXTENSIONS,
     'results'    => $results,
+    'summary'    => $summary,
 ], 'admin');
+
+
+/**
+ * Resolve an admin-supplied folder, refusing anything outside the install.
+ * Returns null when the path escapes the project root.
+ */
+function resolve_import_dir(string $input): ?string
+{
+    $root = realpath(project_path()) ?: project_path();
+    $candidate = $input;
+    if ($candidate === '' || $candidate[0] !== '/') {
+        $candidate = $root . '/' . ltrim($candidate, '/');
+    }
+    $real = realpath($candidate);
+    if ($real === false) {
+        return null;
+    }
+    if ($real !== $root && strpos($real, $root . DIRECTORY_SEPARATOR) !== 0) {
+        return null;
+    }
+    return $real;
+}
+
+/**
+ * Every importable file under $dir, sorted for a predictable report.
+ *
+ * @return SplFileInfo[]
+ */
+function import_candidates(string $dir): array
+{
+    $exts = BookFormat::UPLOAD_EXTENSIONS;
+    $found = [];
+    $iter = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
+    );
+    foreach ($iter as $file) {
+        /** @var SplFileInfo $file */
+        if (!$file->isFile()) {
+            continue;
+        }
+        if (in_array(strtolower($file->getExtension()), $exts, true)) {
+            $found[] = $file;
+        }
+    }
+    usort($found, static fn(SplFileInfo $a, SplFileInfo $b): int
+        => strnatcasecmp($a->getPathname(), $b->getPathname()));
+    return $found;
+}
+
+/**
+ * @return array{path: string, status: string, reason: string}
+ */
+function import_one(SplFileInfo $file): array
+{
+    $path = $file->getPathname();
+    $name = $file->getFilename();
+
+    try {
+        $verdict = BookFileValidator::validate($path, $name);
+        if (!$verdict['ok']) {
+            return ['path' => $path, 'status' => 'failed', 'reason' => $verdict['error']];
+        }
+
+        $existing = BookRepository::findByHash($verdict['hash']);
+        if ($existing) {
+            if (!empty($verdict['converted'])) {
+                @unlink($verdict['path']);
+            }
+            return [
+                'path'   => $path,
+                'status' => 'skipped',
+                'reason' => 'already in the library as “' . $existing['title'] . '”',
+            ];
+        }
+
+        // A converted CBR lives in the temp dir and should be moved into
+        // storage; an original file on disk must only ever be copied.
+        $result = BookImporter::import($verdict, $name, [
+            'move'        => !empty($verdict['converted']),
+            'uploaded_by' => (int) current_user()['id'],
+        ]);
+
+        AuditLogger::log('book.imported_folder', 'book', $result['id'], ['source' => $path]);
+
+        return [
+            'path'   => $path,
+            'status' => 'imported',
+            'reason' => 'imported as “' . $result['title'] . '” [' . BookFormat::label($result['format']) . ']',
+        ];
+    } catch (Throwable $e) {
+        log_error($e);
+        return ['path' => $path, 'status' => 'failed', 'reason' => $e->getMessage()];
+    }
+}

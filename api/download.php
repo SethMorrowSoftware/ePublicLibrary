@@ -1,9 +1,11 @@
 <?php
 /**
- * Stream an EPUB to the requester.
+ * Stream a book file to the requester, in whatever format it is stored.
  *
  *   GET /api/download.php?b={uuid}            → forces download (attachment)
- *   GET /api/download.php?b={uuid}&stream=1   → inline (used by epub.js fetch)
+ *   GET /api/download.php?b={uuid}&stream=1   → inline, used by the readers
+ *                                               (epub.js and pdf.js both
+ *                                               range-request this URL)
  *
  * Public by default. Rate-limited per IP to deter scraping.
  */
@@ -35,14 +37,20 @@ if ($path === null || !is_file($path)) {
 
 $stream = !empty($_GET['stream']);
 $size = filesize($path) ?: 0;
-$filename = preg_replace('/[^A-Za-z0-9._-]+/', '_', $book['title'] . ' - ' . $book['author']) . '.epub';
+
+// Extension and content type follow the stored format, not a hardcoded
+// "epub" — a PDF that downloads as book.epub is unopenable.
+$format = BookFormat::normalize($book['format'] ?? null);
+$stem = preg_replace('/[^A-Za-z0-9._-]+/', '_', $book['title'] . ' - ' . $book['author']);
+$stem = trim((string) $stem, '_.') ?: 'book';
+$filename = mb_substr($stem, 0, 180) . '.' . BookFormat::extension($format);
 
 if (!$stream) {
     BookRepository::incrementDownloadCount((int) $book['id']);
     AuditLogger::log('book.download', 'book', (int) $book['id']);
 }
 
-header('Content-Type: ' . ($book['mime_type'] ?: 'application/epub+zip'));
+header('Content-Type: ' . ($book['mime_type'] ?: BookFormat::mime($format)));
 header('Content-Length: ' . $size);
 header('Accept-Ranges: bytes');
 header('X-Content-Type-Options: nosniff');
@@ -74,15 +82,25 @@ $fh = fopen($path, 'rb');
 if ($fh === false) {
     abort(500, 'Could not open book file.');
 }
+// Streaming a multi-hundred-MB comic must not be killed by the default time
+// limit, and must stop the moment the client goes away.
+@set_time_limit(0);
+ignore_user_abort(false);
+while (ob_get_level() > 0) {
+    ob_end_flush();
+}
+
 fseek($fh, $start);
-$bufSize = 8192;
+$bufSize = 128 * 1024;
 $remaining = $end - $start + 1;
-while ($remaining > 0 && !feof($fh)) {
-    $chunk = fread($fh, min($bufSize, $remaining));
+while ($remaining > 0 && !feof($fh) && connection_status() === CONNECTION_NORMAL) {
+    $chunk = fread($fh, (int) min($bufSize, $remaining));
+    if ($chunk === false || $chunk === '') {
+        break;
+    }
     echo $chunk;
     $remaining -= strlen($chunk);
-    @ob_flush();
-    @flush();
+    flush();
 }
 fclose($fh);
 exit;

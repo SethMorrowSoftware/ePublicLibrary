@@ -21,11 +21,10 @@ defined('APP_BOOTED') or exit;
 <?php if (!$books): ?>
     <div class="empty-state">
         <h2>No books to manage</h2>
-        <p><?= $searchTerm ? 'Nothing matches that search.' : 'Upload an EPUB to get started.' ?></p>
+        <p><?= $searchTerm ? 'Nothing matches that search.' : 'Upload an EPUB, PDF, or comic to get started.' ?></p>
     </div>
 <?php else: ?>
-    <form method="post" action="<?= e(url('admin/books.php')) ?>" id="bulk-form"
-          onsubmit="return confirmBulk(this);">
+    <form method="post" action="<?= e(url('admin/books.php')) ?>" id="bulk-form">
         <?= csrf_field() ?>
         <input type="hidden" name="verb" value="bulk">
 
@@ -49,6 +48,7 @@ defined('APP_BOOTED') or exit;
                     <th class="cover-cell">Cover</th>
                     <th>Title</th>
                     <th>Author</th>
+                    <th>Format</th>
                     <th>Status</th>
                     <th>Added</th>
                     <th></th>
@@ -74,6 +74,14 @@ defined('APP_BOOTED') or exit;
                             </a>
                         </td>
                         <td><?= e($b['author']) ?></td>
+                        <td>
+                            <span class="badge badge-format format-<?= e(BookFormat::normalize($b['format'] ?? null)) ?>">
+                                <?= e(BookFormat::labelForBook($b)) ?>
+                            </span>
+                            <?php if (!empty($b['page_count'])): ?>
+                                <small class="muted"><?= e(number_format((int) $b['page_count'])) ?> pp</small>
+                            <?php endif; ?>
+                        </td>
                         <td><span class="badge badge-<?= e($b['status']) ?>"><?= e($b['status']) ?></span></td>
                         <td><?= e(date('M j, Y', strtotime($b['created_at']))) ?></td>
                         <td class="actions-cell">
@@ -114,15 +122,24 @@ defined('APP_BOOTED') or exit;
                 checks.forEach(c => { c.checked = false; });
                 refresh();
             });
-            window.confirmBulk = function (formEl) {
-                const action = formEl.elements['bulk_action'].value;
-                if (!action) { alert('Choose a bulk action.'); return false; }
+            form.addEventListener('submit', (e) => {
+                const action = form.elements['bulk_action'].value;
                 const sel = Array.from(checks).filter(c => c.checked).length;
+                if (!action) {
+                    e.preventDefault();
+                    alert('Choose a bulk action.');
+                    return;
+                }
+                if (sel === 0) {
+                    e.preventDefault();
+                    alert('Select at least one book.');
+                    return;
+                }
                 const msg = action === 'delete'
-                    ? `Permanently delete ${sel} book(s) and their files?`
+                    ? `Permanently delete ${sel} book(s) and their files? This cannot be undone.`
                     : `Apply "${action}" to ${sel} book(s)?`;
-                return confirm(msg);
-            };
+                if (!confirm(msg)) e.preventDefault();
+            });
         })();
     </script>
 

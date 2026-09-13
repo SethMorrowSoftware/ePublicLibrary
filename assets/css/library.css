@@ -12,16 +12,14 @@
     z-index: var(--z-sticky);
 }
 .header-container { max-width: 1800px; margin: 0 auto; padding: 0.625rem 1.5rem; }
-.header-row { display: flex; align-items: center; gap: var(--space-6); }
+.header-row { display: flex; align-items: center; gap: var(--space-6); min-width: 0; }
+.header-row > * { min-width: 0; }
 
 .logo-container { display: flex; align-items: center; gap: 0.625rem; text-decoration: none; flex-shrink: 0; }
 .logo-icon {
     width: 32px; height: 32px;
-    background: var(--accent-600);
     border-radius: var(--radius-md);
-    display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-display); font-size: 1.125rem;
-    color: var(--accent-fg);
+    display: block; flex-shrink: 0;
     transition: transform var(--duration-fast) var(--ease);
 }
 .logo-container:hover .logo-icon { transform: scale(1.05); }
@@ -78,13 +76,20 @@
 }
 #theme-toggle:hover { border-color: var(--border-strong); color: var(--text-primary); }
 #theme-toggle svg { width: 18px; height: 18px; }
+/* The icon shows the theme currently in effect, including when `auto`
+   resolves to dark via the OS preference. */
 #theme-toggle .moon-icon { display: none; }
 [data-theme="dark"] #theme-toggle .sun-icon,
 .dark #theme-toggle .sun-icon { display: none; }
 [data-theme="dark"] #theme-toggle .moon-icon,
 .dark #theme-toggle .moon-icon { display: block; }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) #theme-toggle .sun-icon  { display: none; }
+    :root:not([data-theme]) #theme-toggle .moon-icon { display: block; }
+}
 
 .header-signin {
+    white-space: nowrap;
     padding: 0.45rem 0.95rem; border: 1px solid var(--border-default);
     border-radius: var(--radius-md); font-size: var(--text-sm);
     color: var(--text-primary); text-decoration: none;
@@ -197,6 +202,37 @@ main { padding: var(--space-8) var(--space-4); min-height: calc(100vh - 80px); }
 .placeholder-title { font-size: var(--text-base); font-weight: 500; line-height: 1.2; }
 .placeholder-author { font-size: var(--text-xs); opacity: 0.7; margin-top: var(--space-1); font-family: var(--font-body); }
 
+/* Format + length chips sit above the cover art and below the hover overlay,
+   so they read at a glance in the grid without fighting the "Read" affordance. */
+.book-format-badge,
+.book-page-badge {
+    position: absolute;
+    z-index: 1;
+    padding: 2px 7px;
+    border-radius: var(--radius-full);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.5;
+    backdrop-filter: blur(6px);
+    pointer-events: none;
+}
+.book-format-badge {
+    top: var(--space-2); left: var(--space-2);
+    background: rgba(28, 25, 23, 0.72);
+    color: #fff;
+}
+.book-format-badge.format-pdf { background: rgba(185, 28, 28, 0.85); }
+.book-format-badge.format-cbz { background: rgba(13, 115, 119, 0.88); }
+.book-page-badge {
+    bottom: var(--space-2); right: var(--space-2);
+    background: rgba(28, 25, 23, 0.6);
+    color: #fff;
+    font-weight: 500;
+}
+.book-card:hover .book-format-badge,
+.book-card:hover .book-page-badge { opacity: 0; transition: opacity var(--duration-fast) var(--ease); }
+
 .book-overlay {
     position: absolute; inset: 0;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -278,15 +314,22 @@ main { padding: var(--space-8) var(--space-4); min-height: calc(100vh - 80px); }
 
 /* ---- Responsive header ---- */
 
+/* ---- Responsive header ----
+   Phones get three stacked bands: brand + account, then the search field,
+   then the sort selects. `min-width: 0` on the flex children is what actually
+   stops the row from pushing past the viewport — without it a flex item
+   refuses to shrink below its content width. */
+@media (max-width: 900px) {
+    .header-row { flex-wrap: wrap; gap: var(--space-3) var(--space-2); }
+    .search-container { order: 3; flex: 1 1 100%; max-width: none; min-width: 0; }
+    .header-controls { order: 2; margin-left: auto; }
+    .sort-controls { order: 4; flex: 1 1 100%; gap: var(--space-2); min-width: 0; }
+    .sort-controls select { flex: 1 1 0; min-width: 0; min-height: 40px; }
+}
 @media (max-width: 768px) {
-    .header-row { flex-wrap: wrap; gap: var(--space-3); }
     .logo-text { display: none; }
-    .search-container { order: 3; flex: 1 0 100%; }
-    .header-controls { margin-left: auto; }
-    /* Sort controls stay reachable on mobile — collapsed into a compact second row */
-    .sort-controls { order: 4; flex: 1 0 100%; gap: var(--space-2); }
     .sort-controls select {
-        flex: 1; padding: 0.55rem 0.65rem; font-size: var(--text-sm);
+        padding: 0.55rem 0.65rem; font-size: var(--text-sm);
         min-height: 44px;  /* tap target */
     }
     main { padding: var(--space-6) var(--space-3); }

@@ -32,15 +32,25 @@ function send_security_headers(): void
     // Content-Security-Policy: tight by default. The two CDN hosts are
     // allowed for the (optional) reader-page fallback when assets/vendor/
     // hasn't been populated. After vendoring locally, you can remove them.
+    //
+    // style-src deliberately carries NO nonce. Per CSP Level 3, a nonce or
+    // hash source in style-src makes the browser IGNORE 'unsafe-inline',
+    // which would block every server-rendered `style=""` attribute (cover
+    // art, progress bars, rating histograms) and the <style> blocks epub.js
+    // injects into each chapter iframe to apply the reader theme and font
+    // size. Inline style attributes are not an XSS vector here — all of them
+    // are built from escaped, server-side values — so 'unsafe-inline' is the
+    // correct trade. script-src keeps its nonce and stays strict.
     $cdnHosts = 'https://cdn.jsdelivr.net https://cdnjs.cloudflare.com';
     $csp = implode('; ', [
         "default-src 'self'",
         "script-src 'self' 'nonce-{$nonce}' {$cdnHosts}",
-        "style-src 'self' 'nonce-{$nonce}' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob:",
         "font-src 'self' data:",
         "connect-src 'self'",
         "worker-src 'self' blob:",
+        "child-src 'self' blob:",
         "frame-src 'self' blob:",
         "media-src 'self' blob:",
         "object-src 'none'",

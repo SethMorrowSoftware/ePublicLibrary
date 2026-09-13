@@ -55,6 +55,7 @@ class BookRepository
      *   year_min   int    — only books with published_date YEAR >= this
      *   year_max   int    — only books with published_date YEAR <= this
      *   min_rating float  — only books with avg_rating >= this (and review_count > 0)
+     *   format     string — 'epub' | 'pdf' | 'cbz'
      *   sort_by    'title' | 'author' | 'published' | 'created' | 'rating' | 'popular' | 'relevance'
      *   sort_dir   'asc' | 'desc'
      *
@@ -96,11 +97,18 @@ class BookRepository
         if ($search !== '') {
             $bool = self::toFulltextBoolean($search);
 
-            if ($field === 'all' && mb_strlen($search) >= 3) {
-                // FULLTEXT path — leverages ft_books_search index on (title, author, description)
-                $selectScore = ", MATCH(title, author, description) AGAINST(:ft_term IN BOOLEAN MODE) AS _score";
+            if ($field === 'all' && mb_strlen($search) >= 3 && $bool !== '') {
+                // FULLTEXT path — leverages ft_books_search index on (title, author, description).
+                //
+                // The term is bound TWICE under two distinct names on purpose:
+                // with PDO::ATTR_EMULATE_PREPARES off, reusing one named
+                // placeholder in both the SELECT and the WHERE raises
+                // "HY093 Invalid parameter number" and every multi-word
+                // search 500s. Two names, one value.
+                $selectScore = ", MATCH(title, author, description) AGAINST(:ft_score IN BOOLEAN MODE) AS _score";
                 $where[] = "MATCH(title, author, description) AGAINST(:ft_term IN BOOLEAN MODE)";
-                $params['ft_term'] = $bool;
+                $params['ft_term']  = $bool;
+                $params['ft_score'] = $bool;
                 $useFulltext = true;
             } else {
                 $like = '%' . self::escapeLike($search) . '%';
@@ -154,12 +162,21 @@ class BookRepository
             $where[] = 'avg_rating >= :f_min_rating AND review_count > 0';
             $params['f_min_rating'] = (float) $opts['min_rating'];
         }
+        if (!empty($opts['format']) && BookFormat::isValid((string) $opts['format'])) {
+            $where[] = 'format = :f_format';
+            $params['f_format'] = (string) $opts['format'];
+        }
 
         $whereSql = $where ? implode(' AND ', $where) : '1';
 
         // ---- Count ----
+        // :ft_score only appears in the SELECT list, so binding it to the
+        // COUNT query would itself be an "invalid parameter number".
         $countStmt = db()->prepare("SELECT COUNT(*) FROM books WHERE {$whereSql}");
         foreach ($params as $k => $v) {
+            if ($k === 'ft_score') {
+                continue;
+            }
             $countStmt->bindValue(':' . $k, $v);
         }
         $countStmt->execute();
@@ -245,6 +262,19 @@ class BookRepository
         return $stmt->fetchAll();
     }
 
+    /** How many published books exist in each format (for filter chips). */
+    public static function formatCounts(): array
+    {
+        $rows = db()->query("SELECT format, COUNT(*) AS n FROM books
+                             WHERE status = 'published'
+                             GROUP BY format")->fetchAll();
+        $out = [];
+        foreach ($rows as $r) {
+            $out[BookFormat::normalize($r['format'])] = (int) $r['n'];
+        }
+        return $out;
+    }
+
     /** Distinct language codes present in the catalog (for filter dropdowns). */
     public static function distinctLanguages(): array
     {
@@ -321,13 +351,17 @@ class BookRepository
     {
         $cols = ['uuid','slug','title','subtitle','author','language','publisher','published_date',
                  'isbn','description','description_html','storage_path','cover_path',
-                 'file_size','file_hash','mime_type','status','uploaded_by'];
+                 'file_size','file_hash','mime_type','format','original_format','page_count',
+                 'status','uploaded_by'];
         $values = [];
         foreach ($cols as $c) {
             $values[$c] = $data[$c] ?? null;
         }
         $values['uuid']   = $values['uuid']   ?? uuid_v4();
         $values['status'] = $values['status'] ?? 'published';
+        $values['format'] = BookFormat::normalize($values['format'] ?? null);
+        $values['original_format'] = $values['original_format'] ?? $values['format'];
+        $values['mime_type'] = $values['mime_type'] ?: BookFormat::mime($values['format']);
 
         $placeholders = implode(', ', array_fill(0, count($cols), '?'));
         $sql = 'INSERT INTO books (' . implode(', ', $cols) . ', created_at, updated_at)
@@ -340,7 +374,8 @@ class BookRepository
     public static function update(int $id, array $fields): void
     {
         $allowed = ['title','subtitle','author','language','publisher','published_date',
-                    'isbn','description','description_html','cover_path','status','slug'];
+                    'isbn','description','description_html','cover_path','status','slug',
+                    'page_count'];
         $set = [];
         $params = [];
         foreach ($allowed as $col) {

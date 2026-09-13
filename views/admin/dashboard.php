@@ -20,8 +20,8 @@ defined('APP_BOOTED') or exit;
         <a href="<?= e(url('admin/users.php')) ?>" class="stat-link">Manage →</a>
     </div>
     <div class="stat-card">
-        <div class="stat-value"><?= e(round($stats['storage_bytes'] / 1024 / 1024, 1)) ?> MB</div>
-        <div class="stat-label">EPUBs on disk</div>
+        <div class="stat-value"><?= e(format_bytes((int) $stats['storage_bytes'])) ?></div>
+        <div class="stat-label">Book files on disk</div>
     </div>
 </div>
 

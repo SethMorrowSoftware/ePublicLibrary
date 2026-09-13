@@ -104,8 +104,36 @@ needs to write `config.php` exactly once; afterwards you can revert to 555).
 
 **"Upload exceeds the 100 MB limit".** Adjust `storage.max_upload_mb` in
 `includes/config.php` AND raise `upload_max_filesize` and `post_max_size`
-in your PHP configuration (cPanel → *MultiPHP INI Editor*).
+in your PHP configuration (cPanel → *MultiPHP INI Editor*). Comics and
+scanned PDFs are frequently larger than the 100 MB default; also raise
+`max_execution_time` if big uploads time out mid-import.
 
-**Books from the legacy v7.x BookShelf**: drop them into the original
-`books/` directory and use *Admin → Import legacy books* to bring them
-into the database. The importer is idempotent and safe to re-run.
+**Bulk-importing books already on the server**: put them in a folder inside
+the installation and use *Admin → Import folder*. It walks subdirectories,
+handles every supported format, copies rather than moves (your originals stay
+put), and is safe to re-run — anything already in the library is skipped by
+checksum. The default folder is the legacy v7.x `books/` directory.
+
+## Format support
+
+The library reads `.epub`, `.pdf`, `.cbz`, and `.cbr`. Two of those depend on
+optional server software; *Admin → Health* reports what your host has.
+
+**PDF covers** need `imagick` with PDF (Ghostscript) support. Without it,
+PDFs import fine — title, author, and page count are still read — but arrive
+without cover art. Open *Admin → Thumbnails* and use **Render PDF covers
+here**: your browser rasterises page 1 with pdf.js and uploads the result.
+
+**CBR** files are RAR archives, which no browser can unpack, so they are
+converted to CBZ during import. That needs one of `bsdtar`, `unar`, `unrar`,
+or `7z` on the server:
+
+```bash
+# Debian / Ubuntu
+apt-get install libarchive-tools     # provides bsdtar
+```
+
+On shared hosting you usually cannot install these. Two options: convert the
+files to `.cbz` before uploading (a CBZ is just a ZIP of images), or check
+whether the file is already a ZIP with a `.cbr` name — very common, and those
+import with no unpacker at all.

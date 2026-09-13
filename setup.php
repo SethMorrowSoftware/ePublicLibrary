@@ -179,11 +179,11 @@ function setup_run(): array
     $configPath = __DIR__ . '/includes/config.php';
     $cfg = [
         'app_name'    => $state['site']['app_name'],
-        'app_version' => '1.0.0',
+        'app_version' => '1.4.0',
         'base_url'    => $state['site']['base_url'],
         'debug'       => false,
         'timezone'    => $state['site']['timezone'],
-        'db'          => $state['db'] + ['collation' => 'utf8mb4_unicode_ci', 'prefix' => ''],
+        'db'          => $state['db'] + ['collation' => 'utf8mb4_unicode_ci'],
         'session'     => [
             'name' => 'elib_sess', 'lifetime' => 60 * 60 * 24 * 14,
             'secure' => null, 'samesite' => 'Lax',

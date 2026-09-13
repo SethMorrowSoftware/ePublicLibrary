@@ -16,6 +16,10 @@ $avg         = (float) $book['avg_rating'];
 $reviewCount = (int)   $book['review_count'];
 $resumeLabel = $progress && $progress['percentage'] > 0 ? 'Continue reading' : 'Read now';
 
+$format      = BookFormat::normalize($book['format'] ?? null);
+$formatBadge = BookFormat::labelForBook($book);
+$pageCount   = (int) ($book['page_count'] ?? 0);
+
 $starsFor = static function (float $avg): string {
     $out = '';
     for ($i = 1; $i <= 5; $i++) {
@@ -39,10 +43,12 @@ $starsFor = static function (float $avg): string {
 
             <div class="book-detail-actions">
                 <a class="btn btn-primary btn-block" href="<?= e($readUrl) ?>"><?= e($resumeLabel) ?></a>
-                <a class="btn btn-ghost btn-block" href="<?= e($downloadUrl) ?>" download>Download EPUB</a>
+                <a class="btn btn-ghost btn-block" href="<?= e($downloadUrl) ?>" download>
+                    Download <?= e(strtoupper(BookFormat::extension($format))) ?>
+                </a>
 
                 <?php if ($user && !empty($shelves)): ?>
-                    <details class="shelf-menu">
+                    <details class="shelf-menu" data-close-outside>
                         <summary class="btn btn-ghost btn-block shelf-menu-summary">
                             <span>Add to shelf</span>
                             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -76,6 +82,14 @@ $starsFor = static function (float $avg): string {
                 <h2 class="book-detail-subtitle"><?= e($book['subtitle']) ?></h2>
             <?php endif; ?>
             <p class="book-detail-author">by <strong><?= e($book['author']) ?></strong></p>
+
+            <p class="book-detail-format">
+                <span class="badge badge-format format-<?= e($format) ?>"><?= e($formatBadge) ?></span>
+                <?php if ($pageCount > 0): ?>
+                    <span class="muted"><?= e(number_format($pageCount)) ?> pages</span>
+                <?php endif; ?>
+                <span class="muted"><?= e(format_bytes((int) $book['file_size'])) ?></span>
+            </p>
 
             <?php if ($reviewCount > 0): ?>
                 <a class="book-detail-rating" href="#reviews">
@@ -111,7 +125,9 @@ $starsFor = static function (float $avg): string {
                 <?php if ($book['published_date']):  ?><dt>Published</dt><dd><?= e($book['published_date']) ?></dd><?php endif; ?>
                 <?php if ($book['language']):        ?><dt>Language</dt><dd><?= e($book['language']) ?></dd><?php endif; ?>
                 <?php if ($book['isbn']):            ?><dt>ISBN</dt><dd><?= e($book['isbn']) ?></dd><?php endif; ?>
-                <dt>File size</dt><dd><?= e(number_format($book['file_size'] / 1024 / 1024, 1)) ?> MB</dd>
+                <dt>Format</dt><dd><?= e(BookFormat::name($format)) ?></dd>
+                <?php if ($pageCount > 0): ?><dt>Pages</dt><dd><?= e(number_format($pageCount)) ?></dd><?php endif; ?>
+                <dt>File size</dt><dd><?= e(format_bytes((int) $book['file_size'])) ?></dd>
                 <dt>Added</dt><dd><?= e(date('M j, Y', strtotime($book['created_at']))) ?></dd>
             </dl>
         </div>
@@ -175,7 +191,7 @@ $starsFor = static function (float $avg): string {
                 </form>
                 <?php if ($myReview): ?>
                     <form id="delete-review-form" method="post" action="<?= e(url('book.php?b=' . eurl($book['uuid']))) ?>"
-                          onsubmit="return confirm('Delete your review?');">
+                          data-confirm="Delete your review?">
                         <?= csrf_field() ?>
                         <input type="hidden" name="verb" value="review_delete">
                         <input type="hidden" name="review_id" value="<?= e((string) $myReview['id']) ?>">

@@ -1,26 +1,50 @@
 # ePublicLibrary
 
-A self-hosted ePub library and reader. Public browsing, optional accounts,
-admin upload, modern reader UI. Vanilla PHP + MySQL — no framework, no build
-step, runs on shared cPanel hosts.
+A self-hosted library and reader for **EPUB, PDF, and comics (CBZ/CBR)**.
+Public browsing, optional accounts, admin upload, modern reader UI. Vanilla
+PHP + MySQL — no framework, no build step, runs on shared cPanel hosts.
 
 ## Features
 
+- **Three formats, one library**: EPUB ebooks, PDF documents, and comic
+  archives all sit in the same catalogue, with the right reader picked
+  automatically.
 - **Public library**: anyone can browse the catalog and read books.
 - **Optional accounts**: sign in to sync reading progress, bookmarks, and
-  shelves across devices.
-- **Admin upload**: drag-drop EPUB upload with metadata extraction and cover
-  thumbnails generated automatically.
-- **Modern reader**: themes (light / dark / sepia), font controls, bookmarks,
-  table of contents, keyboard / touch / swipe navigation.
+  shelves across devices — including across formats.
+- **Admin upload**: drag-and-drop upload with metadata extraction, page
+  counts, duplicate detection, and cover thumbnails generated automatically.
+- **Modern EPUB reader**: themes (light / dark / sepia), font controls,
+  highlights, in-book search, text-to-speech, bookmarks, table of contents,
+  keyboard / touch / swipe navigation.
+- **Page reader for PDFs and comics**: fit-to-width / height / whole-page,
+  zoom, two-page spreads, right-to-left (manga) order, go-to-page, bookmarks,
+  immersive mode.
 - **Hardened**: Argon2id passwords, CSRF protection, rate limiting,
   per-request CSP nonces, audit log, defense-in-depth `.htaccess`.
+- **Self-contained**: fonts are served from the install, so the UI makes no
+  third-party requests at all. (The EPUB and PDF engines fall back to a CDN
+  until you vendor them — see `assets/vendor/README.md`.)
 - **Subdirectory-friendly**: install at `/` or `/library/` or anywhere —
   every URL is computed from a single auto-detected `base_url`.
+
+## Formats
+
+| Format | Reader | Metadata | Cover |
+|---|---|---|---|
+| `.epub` | epub.js, reflowable | OPF package (title, author, ISBN, subjects…) | embedded cover image |
+| `.pdf`  | pdf.js, page-based  | `/Info` dictionary + XMP, page count | page 1, via Imagick — or rendered in the admin's browser when the server has no rasteriser |
+| `.cbz`  | built-in page reader | filename + page count | first page |
+| `.cbr`  | converted to CBZ on import | as CBZ | as CBZ |
+
+CBR needs a RAR unpacker on the server (`bsdtar`, `unar`, `unrar`, or `7z`);
+*Admin → Health* tells you whether yours has one. A `.cbr` that is secretly a
+ZIP — very common — imports with no unpacker at all.
 
 ## Requirements
 
 - PHP 8.0+ with extensions: `pdo_mysql`, `zip`, `gd`, `dom`, `mbstring`, `fileinfo`
+- Optional: `imagick` (server-side PDF cover rendering), a RAR unpacker (CBR import)
 - MySQL 5.7+ or MariaDB 10.3+
 - Apache with `mod_rewrite` (recommended) or any web server that honors `.htaccess` deny rules
 - ~10 MB disk space, plus your books
@@ -43,8 +67,8 @@ specifics.
 
 ```
 public files (web-served)
-├── index.php, book.php, read.php, login.php, ...
-├── api/        — JSON endpoints (download, search, progress, bookmarks, ...)
+├── index.php, book.php, read.php, login.php, manifest.php, ...
+├── api/        — JSON endpoints (download, comic pages, search, progress, ...)
 ├── admin/      — admin tools (upload, books, users, audit, migrate, ...)
 ├── assets/     — CSS, JS, fonts, covers, vendored libs
 └── setup.php   — one-time install wizard (self-disables after run)
@@ -71,8 +95,8 @@ class library (`BookRepository`, `EpubParser`, etc.) and render views via
 
 ## Where things live
 
-- **Books on disk**: `storage/books/{shard}/{uuid}.epub` (shard = first 2
-  chars of UUID, keeps directories small).
+- **Books on disk**: `storage/books/{shard}/{uuid}.{epub|pdf|cbz}` (shard =
+  first 2 chars of UUID, keeps directories small).
 - **Covers**: `assets/covers/{uuid}.jpg` (publicly served — no PHP overhead
   per image).
 - **Logs**: `storage/logs/{app,auth,error}.log` (daily, rotated by the host).
@@ -83,16 +107,16 @@ class library (`BookRepository`, `EpubParser`, etc.) and render views via
 This is a major refactor of an earlier proof-of-concept. The codebase is
 phased:
 
-- **Phase 1 (this release)**: foundation — DB-backed library, real
-  authentication, security hardening, dropped Tailwind CDN, accessibility
-  baseline, setup wizard.
+- **Phase 1**: foundation — DB-backed library, real authentication, security
+  hardening, dropped Tailwind CDN, accessibility baseline, setup wizard.
 - **Phase 2**: collections, "Continue Reading" rail, book detail page,
   advanced search.
 - **Phase 3**: highlights & annotations, in-book search, dictionary popup,
   text-to-speech.
 - **Phase 4**: reading stats, immersive mode, offline support, reviews.
-
-See [CHANGELOG.md](CHANGELOG.md) for what's in this release.
+- **Phase 5 (this release)**: PDF and comic support, self-hosted fonts,
+  installable PWA, and a round of correctness fixes — see
+  [CHANGELOG.md](CHANGELOG.md).
 
 ## Security
 

@@ -13,6 +13,8 @@ defined('APP_BOOTED') or exit;
 /** @var array $allGenres */
 /** @var array $allLangs */
 /** @var array $yearRange */
+/** @var string $format */
+/** @var array $formatCounts */
 ?>
 <div class="content-wrapper search-wrapper">
     <header class="page-header">
@@ -64,7 +66,7 @@ defined('APP_BOOTED') or exit;
             <label class="filter-row">
                 <span>Minimum rating</span>
                 <select name="min_rating">
-                    <option value="0"><?= $minRating <= 0 ? 'selected ' : '' ?>>Any</option>
+                    <option value="0" <?= $minRating <= 0 ? 'selected' : '' ?>>Any</option>
                     <?php foreach ([3, 3.5, 4, 4.5] as $r): ?>
                         <option value="<?= e((string) $r) ?>" <?= abs($minRating - $r) < 0.01 ? 'selected' : '' ?>>
                             <?= e((string) $r) ?>★ and up
@@ -72,6 +74,24 @@ defined('APP_BOOTED') or exit;
                     <?php endforeach; ?>
                 </select>
             </label>
+
+            <fieldset class="filter-row filter-format">
+                <legend>Format</legend>
+                <div class="format-chips">
+                    <label class="format-chip">
+                        <input type="radio" name="format" value="" <?= $format === '' ? 'checked' : '' ?>>
+                        <span>Any</span>
+                    </label>
+                    <?php foreach (BookFormat::all() as $f): ?>
+                        <label class="format-chip">
+                            <input type="radio" name="format" value="<?= e($f) ?>" <?= $format === $f ? 'checked' : '' ?>>
+                            <span><?= e(BookFormat::label($f)) ?>
+                                <small>(<?= e((string) ($formatCounts[$f] ?? 0)) ?>)</small>
+                            </span>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            </fieldset>
 
             <label class="filter-row">
                 <span>Sort by</span>

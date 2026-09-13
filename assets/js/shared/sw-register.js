@@ -13,7 +13,12 @@ export function registerServiceWorker() {
         // SWs require HTTPS in production; skip on plain HTTP demos.
         return;
     }
-    const swUrl    = `${APP_BASE}/sw.js`;
+    // The asset version rides along in the query string: it makes the browser
+    // see a byte-different worker on every deploy (so it updates immediately)
+    // and lets sw.js build precache URLs that match the ?v= suffix asset()
+    // puts on CSS/JS.
+    const version  = document.querySelector('meta[name=asset-version]')?.content || '';
+    const swUrl    = `${APP_BASE}/sw.js${version ? `?v=${encodeURIComponent(version)}` : ''}`;
     const scope    = `${APP_BASE}/` || '/';
     navigator.serviceWorker.register(swUrl, { scope }).catch((e) => {
         // Non-fatal — the app still works without the SW

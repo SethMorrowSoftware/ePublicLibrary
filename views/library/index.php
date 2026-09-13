@@ -49,7 +49,7 @@ $hasSearch = $searchTerm !== '';
             <p class="empty-description">
                 <?= $hasSearch
                     ? 'Try a different search term, or clear filters to see the full library.'
-                    : 'The library is empty. An admin can upload EPUB files to get started.' ?>
+                    : 'The library is empty. An admin can upload EPUB, PDF, or comic files to get started.' ?>
             </p>
             <?php if (!$hasSearch && is_admin()): ?>
                 <a class="btn btn-primary" href="<?= e(url('admin/upload.php')) ?>">Upload your first book</a>
@@ -67,5 +67,3 @@ $hasSearch = $searchTerm !== '';
         <?php partial('pagination', ['page' => $page, 'pages' => $pages, 'queryParams' => $queryParams]); ?>
     <?php endif; ?>
 </div>
-
-<ul id="autocomplete-listbox" class="autocomplete-listbox" role="listbox" hidden></ul>

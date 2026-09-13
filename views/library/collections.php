@@ -92,7 +92,7 @@ defined('APP_BOOTED') or exit;
                         </form>
                         <?php if (!$s['is_system']): ?>
                             <form id="delete-shelf-<?= e((string) $s['id']) ?>" method="post" action="<?= e(url('collections.php')) ?>"
-                                  onsubmit="return confirm('Delete &quot;<?= e(addslashes($s['name'])) ?>&quot;? Books on it stay in the library.');">
+                                  data-confirm="Delete &quot;<?= e($s['name']) ?>&quot;? Books on it stay in the library.">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="verb" value="delete">
                                 <input type="hidden" name="id" value="<?= e((string) $s['id']) ?>">

@@ -24,10 +24,8 @@
 }
 .auth-logo-mark {
     width: 40px; height: 40px;
-    background: var(--accent-600); color: var(--accent-fg);
     border-radius: var(--radius-md);
-    display: inline-flex; align-items: center; justify-content: center;
-    font-family: var(--font-display); font-size: var(--text-xl);
+    display: block; flex-shrink: 0;
 }
 .auth-logo-text {
     font-family: var(--font-display); font-size: var(--text-2xl);

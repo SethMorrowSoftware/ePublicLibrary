@@ -6,13 +6,9 @@ $pageTitle = $pageTitle ?? 'Sign in';
 ?><!doctype html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($pageTitle) ?> · <?= e(config('app_name', 'ePublicLibrary')) ?></title>
-    <meta name="app-base" content="<?= e(app_base()) ?>">
-    <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
-    <meta name="color-scheme" content="light dark">
-    <link rel="icon" href="<?= e(asset('favicon.ico')) ?>" sizes="any">
+    <?php partial('head-meta', ['noIndex' => true]); ?>
     <link rel="stylesheet" href="<?= e(asset('css/design-system.css')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/base.css')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/components.css')) ?>">
@@ -22,7 +18,7 @@ $pageTitle = $pageTitle ?? 'Sign in';
     <a class="skip-link" href="#main-content">Skip to content</a>
     <main id="main-content" class="auth-shell">
         <a class="auth-logo" href="<?= e(url('index.php')) ?>">
-            <span class="auth-logo-mark">B</span>
+            <?php partial('brand-mark', ['class' => 'auth-logo-mark']); ?>
             <span class="auth-logo-text"><?= e(config('app_name', 'ePublicLibrary')) ?></span>
         </a>
         <?php
@@ -35,5 +31,6 @@ $pageTitle = $pageTitle ?? 'Sign in';
         ?>
         <?= $__contents ?>
     </main>
+    <script type="module" src="<?= e(asset('js/auth.js')) ?>"></script>
 </body>
 </html>

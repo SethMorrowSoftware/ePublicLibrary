@@ -12,7 +12,9 @@
  * versioned so a deploy invalidates the old shell.
  */
 
-const VERSION    = 'v1';
+// The registration URL carries ?v=<asset-version> (see shared/sw-register.js),
+// so a deploy produces a new worker and a fresh set of caches automatically.
+const VERSION    = new URL(self.location.href).searchParams.get('v') || 'v1';
 const APP_SHELL  = `elib-shell-${VERSION}`;
 const HTML_CACHE = `elib-html-${VERSION}`;
 const COVERS     = `elib-covers-${VERSION}`;
@@ -22,9 +24,11 @@ const BOOK_QUOTA = 3;  // last-read N books kept offline
 // Pre-cache the app shell at install time. The list is built relative to
 // the SW's own location, so it works at the document root or inside a
 // subdirectory install.
-const SHELL_RELATIVE = [
-    '',                                 // base URL itself
-    'offline.html',
+// A precache entry only ever serves a request whose URL matches it exactly,
+// so each file has to be listed the way the browser actually asks for it.
+//
+// Referenced from HTML through asset(), which appends ?v=<asset-version>:
+const SHELL_VERSIONED = [
     'assets/css/design-system.css',
     'assets/css/base.css',
     'assets/css/components.css',
@@ -33,15 +37,50 @@ const SHELL_RELATIVE = [
     'assets/css/reader.css',
     'assets/js/library.js',
     'assets/js/reader.js',
+    'assets/js/comic-reader.js',
+    'assets/js/pdf-reader.js',
+    'assets/js/admin.js',
+    'assets/js/auth.js',
+];
+
+// Reached only through relative `import` statements inside the modules above,
+// which cannot carry a query string — so these are requested bare. Without
+// them the offline reader renders its shell and then dies on the first import.
+const SHELL_PLAIN = [
+    '',                                 // base URL itself
+    'offline.html',
+    'assets/favicon.svg',
+    'assets/fonts/dm-sans-latin.woff2',
+    'assets/fonts/instrument-serif-latin.woff2',
     'assets/js/shared/api.js',
     'assets/js/shared/toast.js',
     'assets/js/shared/theme.js',
     'assets/js/shared/combobox.js',
     'assets/js/shared/focus-trap.js',
+    'assets/js/shared/sw-register.js',
+    'assets/js/shared/behaviors.js',
+    'assets/js/page-reader/core.js',
+    'assets/js/reader/viewer.js',
+    'assets/js/reader/navigation.js',
+    'assets/js/reader/settings.js',
+    'assets/js/reader/bookmarks.js',
+    'assets/js/reader/progress.js',
+    'assets/js/reader/toc.js',
+    'assets/js/reader/toast.js',
+    'assets/js/reader/panels.js',
+    'assets/js/reader/highlights.js',
+    'assets/js/reader/in-book-search.js',
+    'assets/js/reader/tts.js',
+    'assets/js/reader/dictionary.js',
+    'assets/js/reader/sessions.js',
+    'assets/js/reader/immersive.js',
 ];
 
 const base = new URL('./', self.location).href;
-const shellUrls = SHELL_RELATIVE.map((p) => new URL(p, base).href);
+const shellUrls = [
+    ...SHELL_PLAIN.map((p) => new URL(p, base).href),
+    ...SHELL_VERSIONED.map((p) => new URL(`${p}?v=${VERSION}`, base).href),
+];
 
 self.addEventListener('install', (event) => {
     event.waitUntil((async () => {
@@ -83,9 +122,15 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // ---- EPUB streams: cache-first (with quota) ----
+    // ---- EPUB / PDF streams: cache-first (with quota) ----
     if (url.pathname.endsWith('/api/download.php') && url.searchParams.get('stream') === '1') {
         event.respondWith(bookStrategy(req));
+        return;
+    }
+
+    // ---- Comic page images: immutable per (book, page) ----
+    if (url.pathname.endsWith('/api/comic.php') && url.searchParams.get('page')) {
+        event.respondWith(cacheFirst(req, COVERS));
         return;
     }
 
@@ -104,8 +149,10 @@ self.addEventListener('fetch', (event) => {
 async function htmlStrategy(req) {
     try {
         const fresh = await fetch(req);
-        const cache = await caches.open(HTML_CACHE);
-        cache.put(req, fresh.clone());
+        if (fresh.ok && fresh.type === 'basic') {
+            const cache = await caches.open(HTML_CACHE);
+            cache.put(req, fresh.clone());
+        }
         return fresh;
     } catch {
         const cached = await caches.match(req);

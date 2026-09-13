@@ -16,12 +16,14 @@ $language  = trim((string) ($_GET['language'] ?? ''));
 $yearMin   = (int) ($_GET['year_min'] ?? 0);
 $yearMax   = (int) ($_GET['year_max'] ?? 0);
 $minRating = (float) ($_GET['min_rating'] ?? 0);
+$format    = trim((string) ($_GET['format'] ?? ''));
+$format    = BookFormat::isValid($format) ? $format : '';
 $sortBy    = (string) ($_GET['sort'] ?? ($q !== '' ? 'relevance' : 'created'));
 $sortDir   = (string) ($_GET['order'] ?? 'desc');
 $page      = max(1, (int) ($_GET['page'] ?? 1));
 
 $hasQuery = $q !== '' || $tagSlug !== '' || $language !== ''
-         || $yearMin > 0 || $yearMax > 0 || $minRating > 0;
+         || $yearMin > 0 || $yearMax > 0 || $minRating > 0 || $format !== '';
 
 $result = $hasQuery
     ? BookRepository::paginate([
@@ -34,6 +36,7 @@ $result = $hasQuery
         'year_min'   => $yearMin ?: null,
         'year_max'   => $yearMax ?: null,
         'min_rating' => $minRating ?: null,
+        'format'     => $format ?: null,
         'sort_by'    => $sortBy,
         'sort_dir'   => $sortDir,
     ])
@@ -43,6 +46,7 @@ $result = $hasQuery
 $allGenres   = TagRepository::listAll('genre');
 $allLangs    = BookRepository::distinctLanguages();
 $yearRange   = BookRepository::yearRange();
+$formatCounts = BookRepository::formatCounts();
 
 render('library/search', [
     'pageTitle'  => $q !== '' ? 'Search: ' . $q : 'Advanced search',
@@ -53,6 +57,8 @@ render('library/search', [
     'yearMin'    => $yearMin,
     'yearMax'    => $yearMax,
     'minRating'  => $minRating,
+    'format'     => $format,
+    'formatCounts' => $formatCounts,
     'sortBy'     => $sortBy,
     'sortDir'    => $sortDir,
     'hasQuery'   => $hasQuery,

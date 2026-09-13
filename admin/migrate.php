@@ -24,9 +24,10 @@ $dir = project_path('database/migrations');
 $files = glob($dir . '/*.sql') ?: [];
 sort($files, SORT_STRING);
 
-$appliedRows = $pdo->query("SELECT filename, executed_at, checksum FROM schema_migrations")
-                   ->fetchAll(PDO::FETCH_KEY_PAIR);
-// PDO::FETCH_KEY_PAIR only gets 2 cols; refetch with assoc for the rest
+// Keyed by filename. (This used to run a FETCH_KEY_PAIR query first and then
+// immediately re-fetch the same rows as an assoc array — but FETCH_KEY_PAIR
+// throws on anything other than exactly two columns, so the page 500'd before
+// reaching the second query. One query, keyed by hand.)
 $applied = [];
 foreach ($pdo->query("SELECT filename, executed_at, checksum FROM schema_migrations")->fetchAll() as $r) {
     $applied[$r['filename']] = $r;

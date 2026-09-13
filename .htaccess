@@ -25,7 +25,9 @@
 
 # ---- Block PHP variants commonly used to bypass extension checks -----------
 # (Real entrypoints are .php — never .phtml/.php5/.inc.)
-<FilesMatch "\.(phtml|phps|php[3457]?|inc)$">
+# NOTE: the alternation must NOT make the version digit optional, or it also
+# matches plain ".php" and denies the entire application.
+<FilesMatch "\.(phtml|phtm|phps|pht|php[1-8]|inc)$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>
@@ -43,12 +45,25 @@ Options -Indexes -ExecCGI
 
 # ---- Cache headers: cache static, never cache dynamic ----------------------
 <IfModule mod_headers.c>
-    <FilesMatch "\.(css|js|woff2|woff|ttf|otf|jpg|jpeg|png|gif|svg|ico|webp)$">
+    # Fonts, images and CSS are safe to cache hard: CSS is only ever referenced
+    # from HTML through asset(), which appends ?v=<asset-version>, and the rest
+    # are immutable per URL.
+    <FilesMatch "\.(css|woff2|woff|ttf|otf|jpg|jpeg|png|gif|svg|ico|webp|avif)$">
         Header set Cache-Control "public, max-age=604800"
     </FilesMatch>
-    <FilesMatch "^sw\.js$">
-        # Service worker must update promptly — bypass long cache on the JS rule.
+    # JavaScript revalidates instead. ES modules import each other by relative
+    # path, and a relative import cannot carry the ?v= cache-buster, so a hard
+    # cache here would pin a deploy's dependency modules for a week while the
+    # versioned entry module moved on. A conditional request answering 304 is
+    # cheap; a half-updated module graph is not.
+    <FilesMatch "\.(js|mjs)$">
+        Header set Cache-Control "public, max-age=0, must-revalidate"
+    </FilesMatch>
+    <FilesMatch "^(sw\.js|manifest\.webmanifest)$">
+        # Service worker + manifest must update promptly.
         Header set Cache-Control "no-cache, max-age=0"
+    </FilesMatch>
+    <FilesMatch "^sw\.js$">
         Header set Service-Worker-Allowed "/"
     </FilesMatch>
     <FilesMatch "\.php$">
@@ -56,9 +71,18 @@ Options -Indexes -ExecCGI
     </FilesMatch>
 </IfModule>
 
+# ---- MIME types not always registered on shared hosts -----------------------
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+    AddType font/woff2 .woff2
+    AddType application/epub+zip .epub
+    AddType image/webp .webp
+    AddType image/avif .avif
+</IfModule>
+
 # ---- Compression ------------------------------------------------------------
 <IfModule mod_deflate.c>
-    AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json image/svg+xml
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json application/manifest+json image/svg+xml
 </IfModule>
 
 # NOTE: ErrorDocument is deliberately NOT set here. The application renders
