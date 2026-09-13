@@ -45,7 +45,7 @@ defined('APP_BOOTED') or exit;
                     <?php partial('book-card', ['book' => $b]); ?>
                     <?php if ($isOwner): ?>
                         <form method="post" action="<?= e(current_url()) ?>" class="shelf-book-remove"
-                              onsubmit="return confirm('Remove &quot;<?= e(addslashes($b['title'])) ?>&quot; from this shelf?');">
+                              data-confirm="Remove &quot;<?= e($b['title']) ?>&quot; from this shelf?">
                             <?= csrf_field() ?>
                             <input type="hidden" name="verb" value="remove_book">
                             <input type="hidden" name="book_id" value="<?= e((string) $b['id']) ?>">

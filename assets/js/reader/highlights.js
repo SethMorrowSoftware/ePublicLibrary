@@ -18,7 +18,7 @@
  */
 
 import { post, get, request } from '../shared/api.js';
-import { showToast } from '../reader.js';
+import { showToast } from './toast.js';
 
 const COLORS = ['yellow', 'green', 'blue', 'pink', 'orange'];
 const COLOR_RGBA = {

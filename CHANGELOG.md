@@ -1,5 +1,123 @@
 # Changelog
 
+## 1.4.0 — Multi-format library
+
+Phase 5. The library now holds **PDFs and comics** alongside EPUBs, with a
+shared page-based reader for the two paginated formats. This release also
+fixes a set of defects that made parts of the previous release unusable in
+production — most importantly an `.htaccess` rule that returned 403 for every
+PHP file in the install.
+
+### Added
+
+- **PDF support**
+  - `PdfParser` reads title, author, subject, keywords, creation date and
+    page count from the `/Info` dictionary, falling back to XMP. It inflates
+    FlateDecode object streams first, so metadata still surfaces on modern
+    PDFs where the catalogue is compressed.
+  - `views/reader/pdf.php` renders pages with pdf.js, range-requesting the
+    file so first paint does not wait on the whole document.
+  - Covers rasterise from page 1 with Imagick when the host has it. When it
+    does not, *Admin → Thumbnails* renders them in the browser instead and
+    POSTs the result to `api/covers.php`.
+- **Comic support (CBZ / CBR)**
+  - `ComicArchive` lists pages in natural order (`page2` before `page10`) and
+    skips `__MACOSX`, dotfiles and `Thumbs.db`.
+  - `api/comic.php` serves a manifest and one page at a time, with ETags and
+    a long immutable cache, so a 400 MB volume opens as fast as a small one.
+  - `RarTranscoder` converts CBR to CBZ on import using whichever of
+    `bsdtar` / `unar` / `unrar` / `7z` the host has, and renumbers pages into
+    a flat sequence. CBRs that are really ZIPs are detected by magic bytes
+    and need no unpacker.
+- **Shared page reader** for PDF and comics: fit width / height / whole page,
+  zoom, two-page spread, right-to-left (manga) order, go-to-page, page list,
+  bookmarks, immersive mode, swipe and keyboard navigation. Progress is
+  stored as a `page:N` locator in the same `reading_progress` row EPUBs use,
+  so "Continue reading" spans every format.
+- **Format everywhere**: badges and page counts on book cards, a format facet
+  on advanced search, a Format column in the admin book list, per-format
+  counts and server-capability reporting on *Admin → Health*.
+- **Self-hosted webfonts.** DM Sans and Instrument Serif now ship with the
+  app (`assets/fonts/`, SIL OFL 1.1). The UI makes no third-party requests.
+- **Installable PWA**: `manifest.php` (base-URL aware), generated app icons,
+  and a favicon — the app previously linked a `favicon.ico` that did not exist.
+- **`BookImporter`** unifies upload and folder import, which had drifted apart.
+  The folder importer is no longer legacy-only: it takes any directory inside
+  the install and handles every format.
+- `assets/js/shared/behaviors.js` — delegated `data-confirm` / `data-autosubmit`
+  handlers, replacing inline event attributes.
+
+### Fixed
+
+- **`.htaccess` denied every request to the application.** The rule meant to
+  block `.phtml` / `.php5` used `php[3457]?`, and the optional digit made it
+  match plain `.php` as well, so a correctly installed site returned 403
+  everywhere. *(This is the one to backport if you are running 1.3.0.)*
+- **Admin → Migrations always returned 500.** It ran a `FETCH_KEY_PAIR` query
+  over three columns, which throws, before the assoc re-fetch that followed.
+- **Full-text search always returned 500.** The list query bound `:ft_term`
+  twice, which PDO rejects with native prepares (`HY093`). Any "all fields"
+  search of three characters or more hit it.
+- **The EPUB reader never opened a book.** epub.js infers the container type
+  from the URL's file extension; books stream from `api/download.php?b=…`,
+  which has none, so it looked for an unpacked EPUB and 404'd on
+  `api/META-INF/container.xml`. Fixed with `openAs: 'epub'`.
+- **The CSP blocked the interface it was protecting.** A nonce in `style-src`
+  makes browsers ignore `'unsafe-inline'`, which killed every server-rendered
+  `style=""` — cover art, progress bars, rating histograms — and the `<style>`
+  blocks epub.js injects to theme each chapter. `style-src` no longer carries
+  a nonce; `script-src` still does.
+- **Inline `onclick` / `onsubmit` / `onchange` handlers were dead** under that
+  same CSP. Ten of them: destructive admin forms submitted with no
+  confirmation at all, and the Users page role/status selects did nothing.
+- **A missing `sessions` table took down the whole site**, including the
+  Migrations page that creates it. Session start now falls back to file
+  sessions instead of locking the administrator out.
+- Web fonts never loaded: `design-system.css` `@import`ed Google Fonts, which
+  `style-src 'self'` blocked.
+- Editing a highlight's note or colour never persisted — the `_method=PATCH`
+  branch in `api/highlights.php` sat after the POST branch that returns first.
+  Colour-only edits also wiped the note.
+- Search autocomplete only worked on the library index; its listbox is now in
+  the layout, like the search box that drives it.
+- The mobile header overflowed the viewport by ~125 px: the responsive rules
+  targeted `.sort-controls` as a child of `.header-row`, but the markup nested
+  it one level deeper.
+- An open reader panel covered the toolbar button that opened it.
+- The theme toggle's first press from `auto` changed nothing visible on a
+  light-preferring machine; it now flips away from the current appearance.
+- The guest banner sat on top of the reading-progress readout.
+- Comic and PDF pages ignored "fit width" because the stage shrank to fit its
+  contents.
+- `db.prefix` was configurable but never worked — migrations hard-code table
+  names and most queries ignored it. The knob is gone.
+- Path containment in `BookFileStorage` and the orphan cleaner used a bare
+  prefix match, so a sibling directory sharing the prefix passed.
+- The health check only counted `.epub` files on disk, so PDFs and comics
+  could never be reported as orphans.
+- A failed catalogue INSERT left the uploaded file stranded in storage.
+- `ThumbnailService` destroyed an already-freed GD handle.
+- Assets are cache-busted per deploy. JavaScript revalidates rather than
+  hard-caching, because ES modules import each other by relative path and a
+  relative import cannot carry the version query.
+- The service worker precached a list that missed every reader module, so the
+  offline reader loaded its shell and then failed on the first import.
+
+### Changed
+
+- `read.php` dispatches to `views/reader/{epub,pdf,comic}.php` by format;
+  `views/reader/show.php` is now `views/reader/epub.php`.
+- Downloads carry the correct extension and MIME type for their format, and
+  stream in 128 KB chunks that stop when the client disconnects.
+- Sort controls appear only on the library index, where they actually apply.
+- `BookFileStorage` stores `{shard}/{uuid}.{ext}` rather than always `.epub`.
+
+### Migration
+
+Run **Admin → Migrations** after upgrading to apply
+`0015_book_formats.sql`, which adds `format`, `original_format` and
+`page_count` to `books`. Existing rows are marked as EPUB.
+
 ## 1.3.0 — Polish
 
 Phase 4 — closes out the original four-phase plan. Adds reading-session

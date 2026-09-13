@@ -41,10 +41,26 @@ class BookFileStorage
         return $path;
     }
 
-    /** Default storage path for a book given its UUID. */
-    public static function pathForUuid(string $uuid): string
+    /**
+     * Default storage path for a book given its UUID and format extension.
+     * The extension defaults to epub so pre-existing callers keep working.
+     */
+    public static function pathForUuid(string $uuid, string $ext = 'epub'): string
     {
-        return self::shardPath($uuid) . '/' . $uuid . '.epub';
+        return self::shardPath($uuid) . '/' . $uuid . '.' . self::safeExt($ext);
+    }
+
+    /** Relative path stored in books.storage_path. */
+    public static function relativePathFor(string $uuid, string $ext = 'epub'): string
+    {
+        return shard_for($uuid) . '/' . $uuid . '.' . self::safeExt($ext);
+    }
+
+    /** Extensions are app-controlled, but never build a path from raw input. */
+    private static function safeExt(string $ext): string
+    {
+        $ext = strtolower(preg_replace('/[^a-z0-9]/i', '', $ext) ?? '');
+        return $ext !== '' ? $ext : 'epub';
     }
 
     /**
@@ -68,8 +84,10 @@ class BookFileStorage
         if ($real === false) {
             return null;
         }
+        // Compare against root + separator, otherwise a sibling directory that
+        // merely shares a prefix (…/books-public next to …/books) passes.
         $rootReal = self::root();
-        if (strpos($real, $rootReal) !== 0) {
+        if ($real !== $rootReal && strpos($real, $rootReal . DIRECTORY_SEPARATOR) !== 0) {
             return null; // escapes root
         }
         return $real;
@@ -77,12 +95,12 @@ class BookFileStorage
 
     /**
      * Move a temp/quarantined file into the books root under the canonical
-     * {shard}/{uuid}.epub name. Returns the relative storage path written
+     * {shard}/{uuid}.{ext} name. Returns the relative storage path written
      * to books.storage_path.
      */
-    public static function moveIntoStore(string $tempPath, string $uuid): string
+    public static function moveIntoStore(string $tempPath, string $uuid, string $ext = 'epub'): string
     {
-        $dest = self::pathForUuid($uuid);
+        $dest = self::pathForUuid($uuid, $ext);
         if (!@rename($tempPath, $dest)) {
             // Fall back to copy + unlink (cross-device rename can fail)
             if (!@copy($tempPath, $dest)) {
@@ -91,7 +109,21 @@ class BookFileStorage
             @unlink($tempPath);
         }
         @chmod($dest, 0640);
-        return shard_for($uuid) . '/' . $uuid . '.epub';
+        return self::relativePathFor($uuid, $ext);
+    }
+
+    /**
+     * Copy a file into the books root, leaving the source in place. Used by
+     * the folder importer, which must not destroy the admin's originals.
+     */
+    public static function copyIntoStore(string $sourcePath, string $uuid, string $ext = 'epub'): string
+    {
+        $dest = self::pathForUuid($uuid, $ext);
+        if (!@copy($sourcePath, $dest)) {
+            throw new RuntimeException('Failed to copy the book file into storage.');
+        }
+        @chmod($dest, 0640);
+        return self::relativePathFor($uuid, $ext);
     }
 
     /** Delete the EPUB file for a book. Idempotent. */

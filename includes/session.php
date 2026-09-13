@@ -117,5 +117,19 @@ function init_session(): void
         }
     }
 
-    session_start();
+    try {
+        session_start();
+    } catch (Throwable $e) {
+        // The handler is installed before we know the `sessions` table is
+        // usable, and the failure surfaces here rather than above — PHP only
+        // calls read() from inside session_start(). Without this fallback a
+        // database whose migrations have not run yet takes down every page,
+        // including Admin → Migrations, which is the page that creates the
+        // table. Degrade to PHP's own file sessions instead of locking the
+        // administrator out of their own install.
+        log_error($e);
+        @session_abort();
+        session_set_save_handler(new SessionHandler(), true);
+        @session_start();
+    }
 }

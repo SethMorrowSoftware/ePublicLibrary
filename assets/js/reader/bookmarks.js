@@ -4,7 +4,7 @@
  */
 
 import { post, get, request } from '../shared/api.js';
-import { showToast } from '../reader.js';
+import { showToast } from './toast.js';
 
 const STORAGE_KEY_PREFIX = 'elib-bookmarks-';
 

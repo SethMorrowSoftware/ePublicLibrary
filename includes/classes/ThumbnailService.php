@@ -73,20 +73,63 @@ class ThumbnailService
         if ($img === false) {
             return null;
         }
+        // resize() either returns $img untouched or frees it and returns a new
+        // handle, so $resized is the only handle still alive afterwards.
         $resized = self::resize($img);
         $dest = self::pathFor($bookUuid);
         $ok = imagejpeg($resized, $dest, self::TARGET_QUALITY);
-        imagedestroy($img);
-        if ($resized !== $img) {
-            // resize() returned a new image
-            // (already destroyed $img above when same; here destroy resized too)
-        }
-        @imagedestroy($resized);
+        imagedestroy($resized);
         if (!$ok) {
+            @unlink($dest);
             return null;
         }
         @chmod($dest, 0644);
         return self::relPathFor($bookUuid);
+    }
+
+    /**
+     * Rasterise page 1 of a PDF into a cover.
+     *
+     * Needs Imagick (which needs Ghostscript for PDFs); plenty of shared
+     * hosts have neither, so this returns null rather than failing the
+     * import. The Thumbnails admin page can then generate the cover in the
+     * browser with pdf.js and POST it to api/covers.php.
+     */
+    public static function saveFromPdfFirstPage(string $pdfPath, string $bookUuid): ?string
+    {
+        if (!class_exists('Imagick')) {
+            return null;
+        }
+        try {
+            $im = new Imagick();
+            // Set the rasterisation density BEFORE reading, or Imagick renders
+            // at 72 dpi and the cover comes out soft.
+            $im->setResolution(150, 150);
+            $im->readImage($pdfPath . '[0]');
+            $im->setImageBackgroundColor('white');
+            $im = $im->flattenImages();
+            $im->setImageFormat('jpeg');
+            $bytes = $im->getImageBlob();
+            $im->clear();
+            $im->destroy();
+        } catch (Throwable $e) {
+            log_error($e);
+            return null;
+        }
+        return $bytes !== '' ? self::saveFromBytes($bytes, $bookUuid) : null;
+    }
+
+    /** True when this host can rasterise PDF covers server-side. */
+    public static function canRasterizePdf(): bool
+    {
+        if (!class_exists('Imagick')) {
+            return false;
+        }
+        try {
+            return in_array('PDF', array_map('strtoupper', Imagick::queryFormats('PDF')), true);
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     /**

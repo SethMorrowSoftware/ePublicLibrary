@@ -37,6 +37,41 @@ if ($method === 'GET') {
     json_response(HighlightRepository::listForBook((int) $user['id'], (int) $book['id']));
 }
 
+// Method override for clients that cannot send PATCH. Checked before the
+// POST branch, which would otherwise swallow the request and 400.
+$isPatch = $method === 'PATCH'
+    || ($method === 'POST' && strtoupper((string) ($_GET['_method'] ?? '')) === 'PATCH');
+
+if ($isPatch) {
+    csrf_verify_or_abort();
+    $id = (int) ($_GET['id'] ?? 0);
+    if ($id <= 0) {
+        json_error('Invalid id', 400);
+    }
+    $payload = json_decode(file_get_contents('php://input') ?: '[]', true);
+    if (!is_array($payload)) {
+        json_error('Invalid JSON body', 400);
+    }
+    // Only forward keys the client actually sent — passing a null `note`
+    // alongside a colour change would silently erase the note.
+    $fields = [];
+    if (array_key_exists('note', $payload)) {
+        $fields['note'] = $payload['note'] !== null && $payload['note'] !== ''
+            ? (string) $payload['note']
+            : null;
+    }
+    if (array_key_exists('color', $payload)) {
+        $fields['color'] = (string) $payload['color'];
+    }
+    if (!$fields) {
+        json_error('Nothing to update', 400);
+    }
+    if (!HighlightRepository::update((int) $user['id'], $id, $fields)) {
+        json_error('Highlight not found', 404);
+    }
+    json_response(['ok' => true]);
+}
+
 if ($method === 'POST') {
     csrf_verify_or_abort();
     $payload = json_decode(file_get_contents('php://input') ?: '[]', true);
@@ -62,23 +97,6 @@ if ($method === 'POST') {
     ]);
     AuditLogger::log('highlight.create', 'book', (int) $book['id'], ['highlight_id' => $id]);
     json_response(['ok' => true, 'id' => $id]);
-}
-
-if ($method === 'PATCH' || ($method === 'POST' && !empty($_GET['_method']) && strtoupper((string) $_GET['_method']) === 'PATCH')) {
-    csrf_verify_or_abort();
-    $id = (int) ($_GET['id'] ?? 0);
-    if ($id <= 0) {
-        json_error('Invalid id', 400);
-    }
-    $payload = json_decode(file_get_contents('php://input') ?: '[]', true) ?: [];
-    $ok = HighlightRepository::update((int) $user['id'], $id, [
-        'color' => $payload['color'] ?? null,
-        'note'  => array_key_exists('note', $payload) ? $payload['note'] : null,
-    ]);
-    if (!$ok) {
-        json_error('Highlight not found or no changes', 404);
-    }
-    json_response(['ok' => true]);
 }
 
 if ($method === 'DELETE') {

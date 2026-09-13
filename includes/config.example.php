@@ -14,7 +14,7 @@ defined('APP_BOOTED') or exit;
 return [
     // ---- Site identity ------------------------------------------------------
     'app_name'    => 'ePublicLibrary',
-    'app_version' => '1.0.0',
+    'app_version' => '1.4.0',
 
     // Auto-detected during setup. Examples:
     //   ''           → installed at the document root (https://example.org/)
@@ -37,7 +37,6 @@ return [
         'password'  => '',
         'charset'   => 'utf8mb4',
         'collation' => 'utf8mb4_unicode_ci',
-        'prefix'    => '',           // optional table prefix, e.g. 'el_'
     ],
 
     // ---- Session ------------------------------------------------------------

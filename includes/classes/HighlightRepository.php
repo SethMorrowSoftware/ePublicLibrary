@@ -89,7 +89,10 @@ class HighlightRepository
         $params[] = $id;
         $stmt = db()->prepare('UPDATE highlights SET ' . implode(', ', $set) . ' WHERE id = ?');
         $stmt->execute($params);
-        return $stmt->rowCount() > 0;
+        // Deliberately not rowCount() > 0: MySQL reports 0 affected rows when
+        // the submitted values match what is already stored, and re-saving an
+        // unchanged note is a success, not a 404.
+        return true;
     }
 
     public static function delete(int $userId, int $id): bool

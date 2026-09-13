@@ -30,11 +30,16 @@
 # are user-installed (see assets/vendor/README.md).
 /assets/vendor/*.js
 
-# Vendored fonts — see assets/fonts/README.md
+# Vendored fonts — see assets/fonts/README.md.
+# The UI families (DM Sans / Instrument Serif, both SIL OFL 1.1) ARE tracked
+# so a fresh clone renders correctly with no third-party requests. Anything
+# else an admin drops in here (e.g. OpenDyslexic) stays untracked.
 /assets/fonts/*.woff2
 /assets/fonts/*.woff
 /assets/fonts/*.ttf
 /assets/fonts/*.otf
+!/assets/fonts/dm-sans-*.woff2
+!/assets/fonts/instrument-serif-*.woff2
 
 # OS / editor cruft
 .DS_Store

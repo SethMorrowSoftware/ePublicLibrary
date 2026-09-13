@@ -19,6 +19,7 @@ import { initDictionary }   from './reader/dictionary.js';
 import { initSessions }     from './reader/sessions.js';
 import { initImmersive }    from './reader/immersive.js';
 import { registerServiceWorker } from './shared/sw-register.js';
+import { showToast } from './reader/toast.js';
 
 registerServiceWorker();
 
@@ -78,13 +79,4 @@ async function boot(ctx) {
         console.error('Reader boot failed:', e);
         showToast('Sorry — this book could not be opened.', 'error');
     }
-}
-
-export function showToast(message, kind = 'info') {
-    const el = document.getElementById('reader-toast');
-    if (!el) return;
-    el.textContent = message;
-    el.hidden = false;
-    clearTimeout(showToast._t);
-    showToast._t = setTimeout(() => { el.hidden = true; }, 2200);
 }

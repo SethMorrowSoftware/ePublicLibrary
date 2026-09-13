@@ -4,10 +4,12 @@
 
 import { initThemeToggle } from './shared/theme.js';
 import { combobox } from './shared/combobox.js';
-import { get, url } from './shared/api.js';
+import { get } from './shared/api.js';
 import { registerServiceWorker } from './shared/sw-register.js';
+import { initBehaviors } from './shared/behaviors.js';
 
 registerServiceWorker();
+initBehaviors();
 
 /* ---- Theme ---- */
 initThemeToggle();

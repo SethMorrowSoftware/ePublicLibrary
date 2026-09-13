@@ -66,10 +66,16 @@ function db_try_connect(array $creds): array
 }
 
 /**
- * Apply a table prefix to a base table name.
+ * Table-name resolver.
+ *
+ * Historically this applied a configurable `db.prefix`, but the prefix was
+ * never real: the migrations in database/migrations/ hard-code unprefixed
+ * table names and every repository queries them directly, so setting a
+ * prefix produced a half-prefixed schema where nothing lined up. The knob is
+ * gone; this stays as the single place table names are resolved should real
+ * prefix support ever land (it would need templated migrations too).
  */
 function table(string $name): string
 {
-    $prefix = (string) config('db.prefix', '');
-    return $prefix . $name;
+    return $name;
 }

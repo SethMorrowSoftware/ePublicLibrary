@@ -6,7 +6,7 @@
  * Results are streamed into the panel as each chapter finishes.
  */
 
-import { showToast } from '../reader.js';
+import { showToast } from './toast.js';
 
 export function initInBookSearch(ctx) {
     const { book, rendition } = ctx;

@@ -111,12 +111,42 @@ function url(string $path = ''): string
 }
 
 /**
+ * A short token that changes whenever the deployed code changes. Appended to
+ * CSS/JS asset URLs so a browser (or the service worker) never serves a stale
+ * stylesheet against new markup.
+ *
+ * Derived from the configured app_version plus the mtime of this file, which
+ * moves on every deploy without needing a build step.
+ */
+function asset_version(): string
+{
+    static $v = null;
+    if ($v !== null) {
+        return $v;
+    }
+    $stamp = (string) config('app_version', '1.0.0');
+    $mtime = @filemtime(__DIR__ . '/helpers.php') ?: 0;
+    $v = substr(hash('sha256', $stamp . '|' . $mtime), 0, 8);
+    return $v;
+}
+
+/**
  * Build an asset URL (CSS, JS, fonts, covers).
- *   asset('css/library.css') → '/library/assets/css/library.css'
+ *   asset('css/library.css') → '/library/assets/css/library.css?v=1a2b3c4d'
+ *   asset('covers/x.jpg')    → '/library/assets/covers/x.jpg'
+ *
+ * Code assets get a cache-busting query; content assets (covers, fonts) do
+ * not — they are immutable per URL already.
  */
 function asset(string $path): string
 {
-    return url('assets/' . ltrim($path, '/'));
+    $path = ltrim($path, '/');
+    $built = url('assets/' . $path);
+    $ext = strtolower(pathinfo(parse_url($path, PHP_URL_PATH) ?? $path, PATHINFO_EXTENSION));
+    if (in_array($ext, ['css', 'js', 'mjs'], true) && strpos($built, '?') === false) {
+        $built .= '?v=' . asset_version();
+    }
+    return $built;
 }
 
 /**
@@ -165,7 +195,11 @@ function flash(string $key, ?string $message = null)
 /** Sticky old() for form re-rendering after validation errors. */
 function old(string $key, string $default = ''): string
 {
-    return $_SESSION['_old'][$key] ?? $default;
+    $value = $_SESSION['_old'][$key] ?? null;
+    if ($value === null || is_array($value) || is_object($value)) {
+        return $default;
+    }
+    return (string) $value;
 }
 
 function set_old(array $input): void
@@ -264,6 +298,18 @@ function request_input(string $key, $default = null)
         return $_GET[$key];
     }
     return $default;
+}
+
+/** Format a byte count for humans: 1536 → "1.5 KB". */
+function format_bytes(int $bytes, int $precision = 1): string
+{
+    if ($bytes <= 0) {
+        return '0 B';
+    }
+    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    $power = min((int) floor(log($bytes, 1024)), count($units) - 1);
+    $value = $bytes / (1024 ** $power);
+    return round($value, $power === 0 ? 0 : $precision) . ' ' . $units[$power];
 }
 
 /* ----------- JSON response ------------------------------------------------ */

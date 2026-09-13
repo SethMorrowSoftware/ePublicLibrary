@@ -39,7 +39,7 @@ $me = current_user();
                             <?= csrf_field() ?>
                             <input type="hidden" name="verb" value="set_role">
                             <input type="hidden" name="id" value="<?= e((string) $u['id']) ?>">
-                            <select name="role" onchange="this.form.submit()">
+                            <select name="role" data-autosubmit>
                                 <option value="reader" <?= $u['role'] === 'reader' ? 'selected' : '' ?>>reader</option>
                                 <option value="admin"  <?= $u['role'] === 'admin'  ? 'selected' : '' ?>>admin</option>
                             </select>
@@ -54,7 +54,7 @@ $me = current_user();
                             <?= csrf_field() ?>
                             <input type="hidden" name="verb" value="set_status">
                             <input type="hidden" name="id" value="<?= e((string) $u['id']) ?>">
-                            <select name="status" onchange="this.form.submit()">
+                            <select name="status" data-autosubmit>
                                 <?php foreach (['active','suspended','pending'] as $s): ?>
                                     <option value="<?= e($s) ?>" <?= $u['status'] === $s ? 'selected' : '' ?>><?= e($s) ?></option>
                                 <?php endforeach; ?>
@@ -67,7 +67,7 @@ $me = current_user();
                 <td>
                     <?php if ((int) $u['id'] !== (int) $me['id']): ?>
                         <form method="post" action="<?= e(url('admin/users.php')) ?>" class="inline-form"
-                              onsubmit="return confirm('Reset password for <?= e(addslashes($u['username'])) ?>?');">
+                              data-confirm="Reset the password for <?= e($u['username']) ?>?">
                             <?= csrf_field() ?>
                             <input type="hidden" name="verb" value="reset_password">
                             <input type="hidden" name="id" value="<?= e((string) $u['id']) ?>">

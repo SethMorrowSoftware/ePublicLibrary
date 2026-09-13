@@ -30,12 +30,14 @@ $sortDir     = (string) ($_GET['order']  ?? 'asc');
 $tagSlug     = trim((string) ($_GET['tag']     ?? ''));
 $language    = trim((string) ($_GET['language']?? ''));
 $minRating   = (float)  ($_GET['min_rating'] ?? 0);
+$format      = trim((string) ($_GET['format'] ?? ''));
+$format      = BookFormat::isValid($format) ? $format : '';
 $yearMin     = (int)    ($_GET['year_min']   ?? 0);
 $yearMax     = (int)    ($_GET['year_max']   ?? 0);
 $page        = max(1, (int) ($_GET['page'] ?? 1));
 
 $hasFilter = $searchTerm !== '' || $tagSlug !== '' || $language !== ''
-          || $minRating > 0   || $yearMin > 0   || $yearMax > 0;
+          || $minRating > 0   || $yearMin > 0   || $yearMax > 0 || $format !== '';
 
 // ---- Home mode: rails ---------------------------------------------------
 if (!$hasFilter) {
@@ -70,6 +72,7 @@ $result = BookRepository::paginate([
     'min_rating' => $minRating ?: null,
     'year_min'   => $yearMin ?: null,
     'year_max'   => $yearMax ?: null,
+    'format'     => $format ?: null,
 ]);
 
 render('library/index', [
@@ -92,5 +95,6 @@ render('library/index', [
         'min_rating' => $minRating ?: null,
         'year_min'   => $yearMin ?: null,
         'year_max'   => $yearMax ?: null,
+        'format'     => $format ?: null,
     ]),
 ]);

@@ -11,19 +11,14 @@ $user = current_user();
 ?><!doctype html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover">
     <title><?= e($pageTitle) ?></title>
-    <meta name="app-base" content="<?= e(app_base()) ?>">
-    <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
-    <meta name="color-scheme" content="light dark">
-    <link rel="icon" href="<?= e(asset('favicon.ico')) ?>" sizes="any">
+    <?php partial('head-meta'); ?>
     <link rel="stylesheet" href="<?= e(asset('css/design-system.css')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/base.css')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/components.css')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/library.css')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/discovery.css')) ?>">
-    <link rel="preconnect" href="<?= e(asset('fonts/')) ?>" crossorigin>
 </head>
 <body class="<?= e($pageClass) ?>" data-app-base="<?= e(app_base()) ?>">
     <a class="skip-link" href="#main-content">Skip to content</a>
@@ -44,6 +39,8 @@ $user = current_user();
     </main>
 
     <?php partial('footer'); ?>
+
+    <ul id="autocomplete-listbox" class="autocomplete-listbox" role="listbox" hidden></ul>
 
     <script type="module" src="<?= e(asset('js/library.js')) ?>"></script>
 </body>

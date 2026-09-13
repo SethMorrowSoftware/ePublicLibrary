@@ -11,6 +11,7 @@ $navItems = [
     ['key' => 'dashboard',  'label' => 'Dashboard',    'href' => url('admin/index.php')],
     ['key' => 'books',      'label' => 'Books',        'href' => url('admin/books.php')],
     ['key' => 'upload',     'label' => 'Upload',       'href' => url('admin/upload.php')],
+    ['key' => 'import',     'label' => 'Import folder', 'href' => url('admin/scan-books.php')],
     ['key' => 'users',      'label' => 'Users',        'href' => url('admin/users.php')],
     ['key' => 'thumbnails', 'label' => 'Thumbnails',   'href' => url('admin/thumbnails.php')],
     ['key' => 'health',     'label' => 'Health',       'href' => url('admin/health.php')],
@@ -20,13 +21,9 @@ $navItems = [
 ?><!doctype html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($pageTitle) ?> · Admin</title>
-    <meta name="app-base" content="<?= e(app_base()) ?>">
-    <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
-    <meta name="color-scheme" content="light dark">
-    <link rel="icon" href="<?= e(asset('favicon.ico')) ?>" sizes="any">
+    <?php partial('head-meta', ['noIndex' => true]); ?>
     <link rel="stylesheet" href="<?= e(asset('css/design-system.css')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/base.css')) ?>">
     <link rel="stylesheet" href="<?= e(asset('css/components.css')) ?>">
@@ -37,7 +34,7 @@ $navItems = [
     <div class="admin-shell">
         <aside class="admin-sidebar" aria-label="Admin navigation">
             <a class="admin-logo" href="<?= e(url('index.php')) ?>">
-                <span class="admin-logo-mark">B</span>
+                <?php partial('brand-mark', ['class' => 'admin-logo-mark']); ?>
                 <span class="admin-logo-text"><?= e(config('app_name', 'ePublicLibrary')) ?></span>
             </a>
             <nav class="admin-nav">
@@ -66,5 +63,6 @@ $navItems = [
             <?= $__contents ?>
         </main>
     </div>
+    <script type="module" src="<?= e(asset('js/admin.js')) ?>"></script>
 </body>
 </html>

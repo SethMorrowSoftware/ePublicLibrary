@@ -5,7 +5,16 @@
  */
 
 export async function initViewer(ctx) {
-    const book = ePub(ctx.bookUrl);
+    // `openAs: 'epub'` is required, not cosmetic. epub.js sniffs the input
+    // type from the URL's file extension, and our download endpoint is
+    // `api/download.php?b=…` — no `.epub` on the end — so it concluded the URL
+    // pointed at an *unpacked* EPUB directory and went looking for
+    // `api/META-INF/container.xml`, which 404s. Telling it the input is a
+    // packed archive makes it fetch the bytes and unzip them.
+    const book = ePub(ctx.bookUrl, {
+        openAs: 'epub',
+        requestCredentials: 'same-origin',
+    });
     // Flow preference is set in the Settings panel ("Continuous scroll").
     // Read it once at init — changing the flow requires re-creating the
     // rendition, which the settings module handles via a page reload.

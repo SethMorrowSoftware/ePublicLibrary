@@ -4,7 +4,7 @@ defined('APP_BOOTED') or exit;
 /** @var array $books */
 /** @var string|null $seeAllUrl */
 /** @var string|null $emptyText */
-$railId = 'rail-' . md5($title . spl_object_hash((object) [$title]));
+$railId = 'rail-' . substr(md5($title), 0, 10);
 ?>
 <?php if (!empty($books) || !empty($emptyText)): ?>
 <section class="book-rail" aria-labelledby="<?= e($railId) ?>-title">
