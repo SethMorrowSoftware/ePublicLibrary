@@ -112,7 +112,12 @@ scanned PDFs are frequently larger than the 100 MB default; also raise
 the installation and use *Admin → Import folder*. It walks subdirectories,
 handles every supported format, copies rather than moves (your originals stay
 put), and is safe to re-run — anything already in the library is skipped by
-checksum. The default folder is the legacy v7.x `books/` directory.
+checksum. Cover art kept beside the books comes along: `Title.jpg` next to
+`Title.epub`, a `cover.jpg` in a folder holding a single book (Calibre's
+layout), or the v7.x `books/covers/` thumbnails — and it takes precedence over
+the image inside the file. The default folder is the legacy v7.x `books/`
+directory. Re-running the import also attaches covers to books imported
+earlier that are still missing one.
 
 ## Format support
 

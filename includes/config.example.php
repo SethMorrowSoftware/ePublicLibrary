@@ -14,7 +14,7 @@ defined('APP_BOOTED') or exit;
 return [
     // ---- Site identity ------------------------------------------------------
     'app_name'    => 'ePublicLibrary',
-    'app_version' => '1.4.0',
+    'app_version' => '1.4.1',
 
     // Auto-detected during setup. Examples:
     //   ''           → installed at the document root (https://example.org/)

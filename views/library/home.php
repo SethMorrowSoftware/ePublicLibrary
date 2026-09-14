@@ -3,7 +3,8 @@ defined('APP_BOOTED') or exit;
 /** @var array $continueReading */
 /** @var array $recentlyAdded */
 /** @var array $topRated */
-/** @var int $totalBooks */
+/** @var array $library  BookRepository::paginate() result — the first page, by title */
+$total = (int) $library['total'];
 ?>
 <div class="content-wrapper home-content">
     <?php if (is_guest()): ?>
@@ -19,23 +20,45 @@ defined('APP_BOOTED') or exit;
         </div>
     <?php endif; ?>
 
-    <?php if (!empty($continueReading)): ?>
-        <?php partial('continue-reading-rail', ['items' => $continueReading]); ?>
-    <?php endif; ?>
+    <?php if ($total === 0): ?>
+        <?php partial('library-empty'); ?>
+    <?php else: ?>
+        <?php if (!empty($continueReading)): ?>
+            <?php partial('continue-reading-rail', ['items' => $continueReading]); ?>
+        <?php endif; ?>
 
-    <?php partial('book-rail', [
-        'title'     => 'Recently added',
-        'books'     => $recentlyAdded,
-        'seeAllUrl' => url('index.php?sort=created&order=desc'),
-        'emptyText' => 'No books yet — your library will fill in as books are uploaded.',
-    ]); ?>
-
-    <?php if (!empty($topRated)): ?>
         <?php partial('book-rail', [
-            'title'     => 'Top rated',
-            'books'     => $topRated,
-            'seeAllUrl' => url('index.php?sort=rating&order=desc'),
+            'title'     => 'Recently added',
+            'books'     => $recentlyAdded,
+            'seeAllUrl' => url('index.php?sort=created&order=desc'),
         ]); ?>
+
+        <?php if (!empty($topRated)): ?>
+            <?php partial('book-rail', [
+                'title'     => 'Top rated',
+                'books'     => $topRated,
+                'seeAllUrl' => url('index.php?sort=rating&order=desc'),
+            ]); ?>
+        <?php endif; ?>
+
+        <section class="book-rail home-library" aria-labelledby="home-library-title">
+            <header class="book-rail-header">
+                <h2 id="home-library-title" class="book-rail-title">The library</h2>
+                <span class="book-count">
+                    <?= number_format($total) ?> book<?= $total !== 1 ? 's' : '' ?> · by title
+                </span>
+            </header>
+            <div class="book-grid" role="list">
+                <?php foreach ($library['items'] as $book): ?>
+                    <div role="listitem"><?php partial('book-card', ['book' => $book]); ?></div>
+                <?php endforeach; ?>
+            </div>
+            <?php partial('pagination', [
+                'page'        => (int) $library['page'],
+                'pages'       => (int) $library['pages'],
+                'queryParams' => [],
+            ]); ?>
+        </section>
     <?php endif; ?>
 
     <?php if (is_authed()): ?>
@@ -60,10 +83,4 @@ defined('APP_BOOTED') or exit;
             </a>
         </section>
     <?php endif; ?>
-
-    <p class="home-stat">
-        <span class="home-stat-count"><?= number_format($totalBooks) ?></span>
-        <span class="home-stat-label">book<?= $totalBooks !== 1 ? 's' : '' ?> in the library</span>
-        <a class="home-stat-link" href="<?= e(url('index.php?sort=title&order=asc')) ?>">Browse all →</a>
-    </p>
 </div>

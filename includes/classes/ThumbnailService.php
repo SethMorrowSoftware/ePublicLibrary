@@ -3,8 +3,10 @@
  * ThumbnailService — generate, save, and serve book cover thumbnails.
  *
  * Covers live in {storage.covers_path}/{book_uuid}.jpg.
- * Generation uses the cover image embedded in the EPUB (via EpubParser),
- * resized to a max width with PHP GD.
+ * Sources: the image embedded in an EPUB or comic (via BookImporter), page 1
+ * of a PDF, an image file beside an imported book, or a data URL rendered in
+ * the admin's browser. Whatever the source, it is resized to a max width
+ * with PHP GD.
  */
 
 defined('APP_BOOTED') or exit;
@@ -67,7 +69,17 @@ class ThumbnailService
     public static function saveFromBytes(string $bytes, string $bookUuid): ?string
     {
         if (!function_exists('imagecreatefromstring')) {
-            return null;
+            // Without GD nothing can be resized or converted, but a JPEG can
+            // at least be stored as it is rather than dropped.
+            if (strncmp($bytes, "\xFF\xD8\xFF", 3) !== 0) {
+                return null;
+            }
+            $dest = self::pathFor($bookUuid);
+            if (@file_put_contents($dest, $bytes) === false) {
+                return null;
+            }
+            @chmod($dest, 0644);
+            return self::relPathFor($bookUuid);
         }
         $img = @imagecreatefromstring($bytes);
         if ($img === false) {
@@ -85,6 +97,30 @@ class ThumbnailService
         }
         @chmod($dest, 0644);
         return self::relPathFor($bookUuid);
+    }
+
+    /**
+     * Save an image file on disk as the cover for a UUID — a sidecar found
+     * beside a book by the folder importer, or a legacy thumbnail. Returns
+     * the relative path or null on failure.
+     */
+    public static function saveFromFile(string $file, string $bookUuid): ?string
+    {
+        if (!is_file($file) || !is_readable($file)) {
+            return null;
+        }
+        $bytes = @file_get_contents($file);
+        if ($bytes === false || $bytes === '') {
+            return null;
+        }
+        return self::saveFromBytes($bytes, $bookUuid);
+    }
+
+    /** True when the book row points at a cover that exists on disk. */
+    public static function hasCover(array $book): bool
+    {
+        $rel = (string) ($book['cover_path'] ?? '');
+        return $rel !== '' && is_file(self::coversDir() . '/' . basename($rel));
     }
 
     /**

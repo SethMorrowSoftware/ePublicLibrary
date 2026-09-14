@@ -240,13 +240,35 @@ class EpubParser
             if ($href === '') { continue; }
             $path = $baseDir === '' ? $href : $baseDir . '/' . $href;
             $path = self::normalizePath($path);
-            $data = $zip->getFromName($path);
-            if ($data !== false && $data !== '') {
+            $data = self::readEntry($zip, $path);
+            if ($data !== null) {
                 return [
                     'data'     => $data,
                     'mime'     => $cand['mime'] ?? 'image/jpeg',
                     'filename' => basename($path),
                 ];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Read the ZIP entry a manifest href names.
+     *
+     * Hrefs are URIs, so `Cover%20Image.jpg` refers to the entry
+     * `Cover Image.jpg`; and some packagers write the manifest in a different
+     * case from the archive. Looking the raw href up used to lose every such
+     * cover. Returns null when no entry matches or it is empty.
+     */
+    private static function readEntry(ZipArchive $zip, string $path): ?string
+    {
+        foreach (array_unique([$path, rawurldecode($path)]) as $name) {
+            $data = $zip->getFromName($name);
+            if ($data === false) {
+                $data = $zip->getFromName($name, 0, ZipArchive::FL_NOCASE);
+            }
+            if ($data !== false && $data !== '') {
+                return $data;
             }
         }
         return null;

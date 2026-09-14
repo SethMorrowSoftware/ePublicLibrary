@@ -281,6 +281,7 @@ main { padding: var(--space-8) var(--space-4); min-height: calc(100vh - 80px); }
 .empty-icon svg { width: 36px; height: 36px; }
 .empty-title { font-size: var(--text-2xl); margin-bottom: var(--space-2); }
 .empty-description { color: var(--text-secondary); margin-bottom: var(--space-6); }
+.empty-actions { display: flex; justify-content: center; gap: var(--space-2); flex-wrap: wrap; }
 
 /* ---- Autocomplete listbox ---- */
 

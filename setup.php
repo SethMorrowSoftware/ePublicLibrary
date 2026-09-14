@@ -179,7 +179,7 @@ function setup_run(): array
     $configPath = __DIR__ . '/includes/config.php';
     $cfg = [
         'app_name'    => $state['site']['app_name'],
-        'app_version' => '1.4.0',
+        'app_version' => '1.4.1',
         'base_url'    => $state['site']['base_url'],
         'debug'       => false,
         'timezone'    => $state['site']['timezone'],

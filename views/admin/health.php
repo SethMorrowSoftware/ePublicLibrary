@@ -82,7 +82,10 @@ defined('APP_BOOTED') or exit;
         <p class="muted">Every book has a cover image. ✓</p>
     <?php else: ?>
         <p class="muted">These books don't have a cover image on disk. Use
-           <a href="<?= e(url('admin/thumbnails.php')) ?>">Thumbnails → Build missing only</a> to regenerate.</p>
+           <a href="<?= e(url('admin/thumbnails.php')) ?>">Thumbnails → Build missing only</a> to regenerate
+           from the files themselves, or re-run
+           <a href="<?= e(url('admin/scan-books.php')) ?>">Import folder</a> to pick up cover art kept
+           beside the originals (the legacy <code>books/covers/</code> thumbnails included).</p>
         <ul class="health-list">
             <?php foreach (array_slice($missingCovers, 0, 30) as $b): ?>
                 <li>
