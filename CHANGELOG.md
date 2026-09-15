@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.4.1 — Library home and folder-import fixes
+
+### Fixed
+
+- **Folder import left cover art behind.** The importer only looked for a
+  cover *inside* each file, so the legacy `books/covers/` thumbnails — and any
+  `Title.jpg` or Calibre-style `cover.jpg` beside a book — were ignored. New
+  `CoverSidecar` finds them (same-name image, `cover.jpg`/`folder.jpg` in a
+  one-book folder, then the v7.x `covers/<md5(relative path)>.jpg` and the
+  older underscore naming), they take precedence over the embedded image, and
+  the import report now has a *Cover* column saying where each one came from.
+- **Re-running the import now repairs covers.** Books already in the library
+  are still skipped by checksum, but a skipped book with no cover gets one
+  attached — from the sidecar, or re-extracted from the file — instead of
+  just being reported as a duplicate. Re-import `books/` once to fix a
+  library imported before this release.
+- EPUB covers whose manifest href was percent-encoded (`Cover%20Image.jpg`)
+  or differed in case from the archive entry were never found.
+- Without GD, a JPEG cover is stored as-is rather than silently dropped.
+- **"See all" and "Browse all" reloaded the home page.** `index.php` only
+  switched to the list for search and filter parameters; `sort`, `order` and
+  `page` now open the full sorted, paginated grid, so the header's sort
+  selects work from the home page too. The list heading says how it is
+  ordered ("newest first", "by author").
+- The folder scan skips dotfiles, so macOS `._Title.epub` resource forks no
+  longer show up as failed imports.
+
+### Changed
+
+- **Rails no longer scroll sideways.** "Recently added", "Top rated" and
+  "You might also like" wrap into the same grid the library uses, and the
+  home page now ends with the library itself — the first page of the A–Z
+  grid with pagination — instead of a link to it. Both views page by 24.
+- The empty-library state is shared by the home page and the list, and
+  offers admins the folder importer alongside the uploader.
+
 ## 1.4.0 — Multi-format library
 
 Phase 5. The library now holds **PDFs and comics** alongside EPUBs, with a

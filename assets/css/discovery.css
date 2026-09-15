@@ -14,7 +14,10 @@
 }
 .page-header p { color: var(--text-secondary); }
 
-/* ---- Book rails (Recently added / Top rated / Related) ------------------ */
+/* ---- Book rails (Recently added / Top rated / Related) ------------------
+   A rail is a titled slice of the library. Its track is the same wrapping
+   grid as .book-grid — never a sideways-scrolling strip — and "See all"
+   opens the full sorted list. */
 
 .book-rail {
     margin: var(--space-8) 0;
@@ -46,36 +49,31 @@
 
 .book-rail-track {
     display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 180px;
-    gap: var(--space-4);
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    padding: var(--space-2) var(--space-1) var(--space-4);
-    /* Hide scrollbar visually but keep wheel/swipe working */
-    scrollbar-width: thin;
-    scrollbar-color: var(--border-strong) transparent;
+    gap: var(--space-6);
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    padding: var(--space-2) var(--space-1) 0;
 }
-.book-rail-track::-webkit-scrollbar { height: 8px; }
-.book-rail-track::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--radius-full); }
-.book-rail-track::-webkit-scrollbar-track { background: transparent; }
-.book-rail-item { scroll-snap-align: start; }
 .book-rail-item .book-card { width: 100%; }
 
 @media (min-width: 1024px) {
-    .book-rail-track { grid-auto-columns: 210px; gap: var(--space-6); }
+    .book-rail-track { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--space-10); }
 }
 @media (max-width: 480px) {
-    .book-rail-track { grid-auto-columns: 140px; gap: var(--space-3); }
+    .book-rail-track { grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
 }
+
+/* The library itself on the home page: the first page of the A–Z grid. */
+.home-library .book-rail-header { flex-wrap: wrap; }
+.home-library .book-grid { padding: var(--space-2) var(--space-1) 0; }
 
 /* ---- Continue reading rail (special card with progress bar) ---- */
 
 .continue-reading .book-rail-track {
-    grid-auto-columns: minmax(260px, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--space-4);
 }
 @media (min-width: 1024px) {
-    .continue-reading .book-rail-track { grid-auto-columns: minmax(300px, 1fr); }
+    .continue-reading .book-rail-track { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--space-4); }
 }
 
 .continue-card {
@@ -89,7 +87,6 @@
     text-decoration: none;
     color: var(--text-primary);
     transition: all var(--duration-fast) var(--ease);
-    scroll-snap-align: start;
 }
 .continue-card:hover {
     border-color: var(--accent-500);
@@ -171,18 +168,6 @@
     flex-shrink: 0;
 }
 .home-shortcut-icon svg { width: 22px; height: 22px; }
-
-.home-stat {
-    margin-top: var(--space-10); padding: var(--space-5);
-    border-top: 1px solid var(--border-default);
-    display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap;
-    font-size: var(--text-sm); color: var(--text-secondary);
-}
-.home-stat-count {
-    font-family: var(--font-display); font-size: var(--text-2xl);
-    color: var(--text-primary);
-}
-.home-stat-link { margin-left: auto; color: var(--accent-600); font-weight: 600; }
 
 /* ---- Book detail page --------------------------------------------------- */
 

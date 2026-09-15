@@ -41,6 +41,10 @@ CBR needs a RAR unpacker on the server (`bsdtar`, `unar`, `unrar`, or `7z`);
 *Admin → Health* tells you whether yours has one. A `.cbr` that is secretly a
 ZIP — very common — imports with no unpacker at all.
 
+When importing from a folder, an image kept beside the book — `Title.jpg`, a
+Calibre-style `cover.jpg`, or a legacy `books/covers/` thumbnail — is used as
+the cover in preference to the one inside the file.
+
 ## Requirements
 
 - PHP 8.0+ with extensions: `pdo_mysql`, `zip`, `gd`, `dom`, `mbstring`, `fileinfo`

@@ -3,9 +3,11 @@
  * Library home page.
  *
  * Two modes:
- *   1. Home (no search/filter): shows rails — Continue Reading (logged in),
- *      Recently Added, Top Rated — plus a "Recently added" tail grid.
- *   2. Search/filter: shows the standard paginated grid with sort controls.
+ *   1. Home (no parameters): rails — Continue Reading (logged in), Recently
+ *      Added, Top Rated — followed by the first page of the library grid.
+ *   2. List (any search, filter, sort, order or page parameter): the
+ *      paginated grid with sort controls. "See all" on a rail, the header's
+ *      sort selects and every pagination link land here.
  *
  * Phase 1 sourced books from a filesystem scan; this still queries the DB
  * via BookRepository (the read path is the same as Phase 1).
@@ -23,6 +25,10 @@ if (isset($_GET['autocomplete'])) {
     json_response(BookRepository::autocomplete((string) $_GET['autocomplete'], 8));
 }
 
+// Home and list share one page size, so page 2 of the list carries on
+// exactly where the grid on the home page stopped.
+$perPage = 24;
+
 $searchTerm  = trim((string) ($_GET['search'] ?? ''));
 $searchField = (string) ($_GET['field'] ?? 'all');
 $sortBy      = (string) ($_GET['sort']   ?? 'title');
@@ -39,30 +45,33 @@ $page        = max(1, (int) ($_GET['page'] ?? 1));
 $hasFilter = $searchTerm !== '' || $tagSlug !== '' || $language !== ''
           || $minRating > 0   || $yearMin > 0   || $yearMax > 0 || $format !== '';
 
-// ---- Home mode: rails ---------------------------------------------------
-if (!$hasFilter) {
+// Sort, order and page narrow nothing down, but asking for one of them is
+// asking for the list rather than the home page. Without this, "See all"
+// and the sort selects just reloaded the home page.
+$wantsList = isset($_GET['sort']) || isset($_GET['order']) || isset($_GET['page']);
+
+// ---- Home mode: rails + the first page of the library --------------------
+if (!$hasFilter && !$wantsList) {
     $user = current_user();
     $continueReading = $user
         ? ProgressRepository::continueReading((int) $user['id'], 6)
         : [];
-    $recentlyAdded = BookRepository::recentlyAdded(12);
-    $topRated      = BookRepository::topRated(12, 1);  // include books with >=1 review
 
     render('library/home', [
         'pageTitle'       => config('app_name', 'ePublicLibrary'),
         'pageClass'       => 'library-page',
         'continueReading' => $continueReading,
-        'recentlyAdded'   => $recentlyAdded,
-        'topRated'        => $topRated,
-        'totalBooks'      => BookRepository::totalCount(),
+        'recentlyAdded'   => BookRepository::recentlyAdded(8),
+        'topRated'        => BookRepository::topRated(8, 1),  // include books with >=1 review
+        'library'         => BookRepository::paginate(['page' => 1, 'per_page' => $perPage]),
     ]);
     exit;
 }
 
-// ---- Search/filter mode: grid -------------------------------------------
+// ---- List mode: grid ----------------------------------------------------
 $result = BookRepository::paginate([
     'page'       => $page,
-    'per_page'   => 25,
+    'per_page'   => $perPage,
     'search'     => $searchTerm,
     'field'      => $searchField,
     'sort_by'    => $sortBy,
@@ -85,6 +94,8 @@ render('library/index', [
     'page'         => $result['page'],
     'pages'        => $result['pages'],
     'searchTerm'   => $searchTerm,
+    'hasFilter'    => $hasFilter,
+    'sortLabel'    => sort_label($sortBy, $sortDir),
     'queryParams'  => array_filter([
         'search'     => $searchTerm,
         'field'      => $searchField !== 'all' ? $searchField : null,
@@ -98,3 +109,22 @@ render('library/index', [
         'format'     => $format ?: null,
     ]),
 ]);
+
+
+/**
+ * How the list is ordered, in words for its heading — so landing here from
+ * "See all" on a rail visibly did something.
+ */
+function sort_label(string $sortBy, string $sortDir): string
+{
+    $desc = strtolower($sortDir) === 'desc';
+    switch ($sortBy) {
+        case 'created':   return $desc ? 'newest first' : 'oldest first';
+        case 'rating':    return $desc ? 'highest rated first' : 'lowest rated first';
+        case 'popular':   return $desc ? 'most read first' : 'least read first';
+        case 'published': return $desc ? 'by publication date, newest first' : 'by publication date';
+        case 'author':    return $desc ? 'by author, Z → A' : 'by author';
+        case 'relevance': return 'by relevance';
+        default:          return $desc ? 'by title, Z → A' : 'by title';
+    }
+}

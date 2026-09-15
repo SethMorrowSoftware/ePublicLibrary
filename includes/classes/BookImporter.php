@@ -5,6 +5,9 @@
  * Shared by the admin uploader and the folder importer so both paths agree on
  * metadata extraction, cover generation, slugging, tagging, and the audit
  * trail. Before this existed the two copies had already drifted.
+ *
+ * Covers come from an image file the caller found beside the book when there
+ * is one (see CoverSidecar), otherwise from inside the book.
  */
 
 defined('APP_BOOTED') or exit;
@@ -20,8 +23,16 @@ class BookImporter
      * @param array  $opts      move: bool — move the file (upload) or copy it
      *                                       (folder import). Default true.
      *                          uploaded_by: ?int
+     *                          cover_file: ?string — an image on disk to use
+     *                                       as the cover, tried before the one
+     *                                       inside the book (a sidecar or
+     *                                       legacy thumbnail found by the
+     *                                       folder importer).
      *
-     * @return array{id: int, uuid: string, title: string, format: string}
+     * @return array{id: int, uuid: string, title: string, format: string,
+     *               cover_path: ?string, cover_source: ?string}
+     *         cover_source is 'file', 'embedded', or null when no cover
+     *         could be produced.
      * @throws RuntimeException when the file cannot be stored.
      */
     public static function import(array $verdict, string $fallbackName, array $opts = []): array
@@ -41,7 +52,8 @@ class BookImporter
         // Generate the cover from the file now in its final home, so a failed
         // move cannot leave a cover pointing at nothing.
         $storedPath = BookFileStorage::root() . '/' . $relStoragePath;
-        $coverPath  = self::generateCover($storedPath, $format, $uuid, $meta);
+        $cover      = self::resolveCover($storedPath, $format, $uuid, $meta, $opts['cover_file'] ?? null);
+        $coverPath  = $cover['path'];
 
         $title  = self::firstNonEmpty($meta['title'], pathinfo($fallbackName, PATHINFO_FILENAME), 'Untitled');
         $author = self::firstNonEmpty($meta['author'], 'Unknown');
@@ -86,7 +98,65 @@ class BookImporter
             TagRepository::attachToBook($bookId, $meta['subjects'], 'genre');
         }
 
-        return ['id' => $bookId, 'uuid' => $uuid, 'title' => $title, 'format' => $format];
+        return [
+            'id'           => $bookId,
+            'uuid'         => $uuid,
+            'title'        => $title,
+            'format'       => $format,
+            'cover_path'   => $coverPath,
+            'cover_source' => $cover['source'],
+        ];
+    }
+
+    /**
+     * Give an already-catalogued book the cover it lacks. The folder importer
+     * calls this for files it skips as duplicates: the book was imported
+     * earlier, but its sidecar cover was not understood then, or the cover
+     * inside the file could not be read at the time. Updates the row.
+     *
+     * @param array       $book      A books row.
+     * @param string|null $coverFile An image on disk to prefer, if any.
+     *
+     * @return array{path: string, source: string}|null  null when the book
+     *         still has no usable cover anywhere.
+     */
+    public static function attachCover(array $book, ?string $coverFile = null): ?array
+    {
+        $cover = self::resolveCover(
+            BookFileStorage::resolveForBook($book),
+            BookFormat::normalize($book['format'] ?? null),
+            (string) $book['uuid'],
+            null,
+            $coverFile
+        );
+        if ($cover['path'] === null) {
+            return null;
+        }
+        BookRepository::update((int) $book['id'], ['cover_path' => $cover['path']]);
+        return $cover;
+    }
+
+    /**
+     * Pick a book's cover: an image file supplied by the caller when there is
+     * one, otherwise whatever the book itself carries.
+     *
+     * @return array{path: ?string, source: ?string}
+     */
+    private static function resolveCover(?string $bookPath, string $format, string $uuid, ?array $meta, ?string $coverFile): array
+    {
+        if ($coverFile !== null) {
+            $rel = ThumbnailService::saveFromFile($coverFile, $uuid);
+            if ($rel !== null) {
+                return ['path' => $rel, 'source' => 'file'];
+            }
+        }
+        if ($bookPath !== null) {
+            $rel = self::generateCover($bookPath, $format, $uuid, $meta);
+            if ($rel !== null) {
+                return ['path' => $rel, 'source' => 'embedded'];
+            }
+        }
+        return ['path' => null, 'source' => null];
     }
 
     /** Insert the catalogue row. Split out so import() reads as a sequence. */
